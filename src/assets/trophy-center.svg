@@ -1,0 +1,22 @@
+<svg width="220" height="320" viewBox="0 0 220 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="goldMain" x1="20" y1="30" x2="200" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF2B0" />
+      <stop offset="0.4" stop-color="#E4BC52" />
+      <stop offset="0.75" stop-color="#B8861E" />
+      <stop offset="1" stop-color="#F2D77A" />
+    </linearGradient>
+    <linearGradient id="goldDark" x1="24" y1="20" x2="192" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8D86A" />
+      <stop offset="1" stop-color="#8F6515" />
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="110" cy="42" rx="52" ry="30" fill="url(#goldMain)" />
+  <path d="M56 42C51 70 60 106 80 156C93 188 99 220 94 250H126C121 220 127 188 140 156C160 106 169 70 164 42H56Z" fill="url(#goldDark)" />
+  <path d="M70 54C74 100 88 142 111 198C132 142 146 100 150 54" stroke="url(#goldMain)" stroke-width="10" stroke-linecap="round" />
+  <rect x="76" y="246" width="68" height="22" rx="8" fill="url(#goldMain)" />
+  <rect x="64" y="266" width="92" height="20" rx="8" fill="url(#goldDark)" />
+  <rect x="50" y="286" width="120" height="22" rx="10" fill="url(#goldMain)" />
+  <circle cx="110" cy="42" r="8" fill="#FFECB2" />
+</svg>
