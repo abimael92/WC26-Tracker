@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ROUND_LABELS } from '../data/teams';
 import { getAllScheduleRows, getMatchSchedule, formatMatchScheduleLocal } from '../lib/schedule';
@@ -61,6 +61,15 @@ const ROUND_BADGE_CLASSES = {
   sf: 'border-[#D97706]/35 bg-[#FFEDD5] text-[#B45309] dark:border-[#F59E0B]/45 dark:bg-[#3A2614] dark:text-[#FCD34D]',
   final: 'border-[#CA8A04]/35 bg-[#FEF9C3] text-[#854D0E] dark:border-[#EAB308]/45 dark:bg-[#3A3215] dark:text-[#FDE047]',
   third: 'border-[#475569]/35 bg-[#E2E8F0] text-[#334155] dark:border-[#64748B]/45 dark:bg-[#1E293B] dark:text-[#CBD5E1]',
+};
+
+const ACTIVE_MATCH_CLASSES = {
+  r32: 'border-l-4 border-l-[#0EA5E9] border-[#0EA5E9] bg-[#ECFEFF] shadow-[0_8px_18px_rgba(14,165,233,0.2)] ring-2 ring-[#38BDF8]/30 dark:border-l-[#38BDF8] dark:border-[#38BDF8] dark:bg-[#0C2336] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#38BDF8]/35',
+  r16: 'border-l-4 border-l-[#2563EB] border-[#2563EB] bg-[#EEF2FF] shadow-[0_8px_18px_rgba(37,99,235,0.2)] ring-2 ring-[#3B82F6]/30 dark:border-l-[#3B82F6] dark:border-[#3B82F6] dark:bg-[#13243A] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#60A5FA]/30',
+  qf: 'border-l-4 border-l-[#9333EA] border-[#9333EA] bg-[#FAF5FF] shadow-[0_8px_18px_rgba(147,51,234,0.2)] ring-2 ring-[#A855F7]/30 dark:border-l-[#A855F7] dark:border-[#A855F7] dark:bg-[#221335] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#C084FC]/30',
+  sf: 'border-l-4 border-l-[#D97706] border-[#D97706] bg-[#FFF7ED] shadow-[0_8px_18px_rgba(217,119,6,0.2)] ring-2 ring-[#F59E0B]/35 dark:border-l-[#F6C453] dark:border-[#F6C453] dark:bg-[#2C1F14] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#FBBF24]/30',
+  final: 'border-l-4 border-l-[#CA8A04] border-[#CA8A04] bg-[#FEFCE8] shadow-[0_8px_18px_rgba(202,138,4,0.2)] ring-2 ring-[#EAB308]/35 dark:border-l-[#EAB308] dark:border-[#EAB308] dark:bg-[#2E2A14] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#FDE047]/30',
+  third: 'border-l-4 border-l-[#475569] border-[#475569] bg-[#F8FAFC] shadow-[0_8px_18px_rgba(71,85,105,0.18)] ring-2 ring-[#94A3B8]/35 dark:border-l-[#94A3B8] dark:border-[#64748B] dark:bg-[#1B2738] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#94A3B8]/35',
 };
 
 const formatGroupList = (groups) => groups.join(', ');
@@ -219,6 +228,7 @@ function MatchCard({
   onActivate,
   scheduleText,
   roundMatches,
+  cardRef,
 }) {
   const teamA = match.teamA ? teamMap[match.teamA] : null;
   const teamB = match.teamB ? teamMap[match.teamB] : null;
@@ -258,6 +268,7 @@ function MatchCard({
   return (
     <>
       <motion.div
+        ref={cardRef}
         layout
         animate={
           completionFlash
@@ -268,26 +279,28 @@ function MatchCard({
         }
         className={`relative rounded-xl border p-3 transition-all ${
           active
-            ? 'border-l-4 border-l-[#D97706] border-[#D97706] bg-[#F1F5F9] shadow-[0_8px_18px_rgba(15,23,42,0.16)] ring-2 ring-[#F59E0B]/35 dark:border-l-[#F6C453] dark:border-[#F6C453] dark:bg-[#13243A] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#FBBF24]/30'
+            ? ACTIVE_MATCH_CLASSES[roundKey] || ACTIVE_MATCH_CLASSES.r16
             : 'border-l-4 border-l-[#2563EB] border-[#E2E8F0] bg-white shadow-[0_2px_6px_rgba(15,23,42,0.08)] hover:scale-[1.02] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08)] dark:border-l-[#38BDF8] dark:border-[#22324D] dark:bg-[#0F1A2E] dark:shadow-[0_2px_6px_rgba(2,6,23,0.4)]'
         } ${completionFlash ? 'ring-2 ring-[#10B981]/40 dark:ring-[#34D399]/40' : ''}`}
         transition={{ duration: 0.2 }}
         onClick={onActivate}
       >
-        <span
-          className={`absolute right-2 top-2 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-            isComplete
-              ? 'border-[#059669]/30 bg-[#ECFDF5] text-[#059669] dark:border-[#10B981]/40 dark:bg-[#103225] dark:text-[#34D399]'
-              : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#64748B] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#94A3B8]'
-          }`}
-        >
-          {isComplete ? 'Completo' : 'Pendiente'}
-        </span>
+        <div className="mb-2 flex justify-end">
+          <span
+            className={`rounded-full border px-3 py-1 text-[11px] font-bold leading-none ${
+              isComplete
+                ? 'border-[#059669]/35 bg-[#ECFDF5] text-[#047857] dark:border-[#10B981]/45 dark:bg-[#103225] dark:text-[#34D399]'
+                : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#475569] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#A9B4C7]'
+            }`}
+          >
+            {isComplete ? 'Completo' : 'Pendiente'}
+          </span>
+        </div>
         {showSeedTemplate ? (
           <div className="space-y-2">
             <div className="flex items-start gap-2">
               <select
-                className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-xs text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
                 value={match.teamA || ''}
                 onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamA', e.target.value)}
               >
@@ -310,7 +323,7 @@ function MatchCard({
             <TeamPill team={teamA} compact />
             <div className="flex items-start gap-2">
               <select
-                className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-xs text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
                 value={match.teamB || ''}
                 onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamB', e.target.value)}
               >
@@ -348,7 +361,7 @@ function MatchCard({
         {teamA && teamB && (
           <select
             disabled={disabled}
-            className="mt-2 min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+            className="mt-2 min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-xs text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
             value={match.winner || ''}
             onChange={(e) => onPickWinner(roundKey, index, e.target.value)}
           >
@@ -398,6 +411,7 @@ export default function BracketView({
   const [selectedMatchRef, setSelectedMatchRef] = useState(null);
   const [autoAdvanceEnabled, setAutoAdvanceEnabled] = useState(true);
   const [pendingAutoAdvance, setPendingAutoAdvance] = useState(null);
+  const [bracketZoom, setBracketZoom] = useState(1);
   const [mobileRoundFocus, setMobileRoundFocus] = useState(() => {
     if (typeof window === 'undefined') return 'all';
     const saved = window.localStorage.getItem(MOBILE_ROUND_FOCUS_STORAGE_KEY);
@@ -405,7 +419,11 @@ export default function BracketView({
   });
   const [scheduleRoundFilter, setScheduleRoundFilter] = useState('all');
   const bracketScrollRef = useRef(null);
+  const bracketCanvasRef = useRef(null);
   const bracketCenterRef = useRef(null);
+  const cardRefs = useRef(new Map());
+  const [connectorOverlay, setConnectorOverlay] = useState({ width: 0, height: 0, paths: [] });
+  const [centerDecorPaths, setCenterDecorPaths] = useState({ gold: '', bronze: '' });
 
   const selectedStandingTeam = selectedStandingTeamId ? teamMap[selectedStandingTeamId] : null;
   const selectedTeamGuidance = useMemo(
@@ -460,30 +478,30 @@ export default function BracketView({
   };
 
   const getRoundCompletion = (roundKey) => {
-    const matches = bracket[roundKey] || [];
+    const matches = (bracket[roundKey] || []).filter(Boolean);
     if (!matches.length) return 0;
-    const completed = matches.filter((match) => match.winner).length;
+    const completed = matches.filter((match) => match?.winner).length;
     return Math.round((completed / matches.length) * 100);
   };
 
   const getRoundProgressCounts = (roundKey) => {
-    const matches = bracket[roundKey] || [];
-    const completed = matches.filter((match) => match.winner).length;
+    const matches = (bracket[roundKey] || []).filter(Boolean);
+    const completed = matches.filter((match) => match?.winner).length;
     return { completed, total: matches.length };
   };
 
   const totalCompletion = useMemo(() => {
     const keys = ['r32', 'r16', 'qf', 'sf', 'final'];
-    const all = keys.flatMap((key) => bracket[key] || []);
+    const all = keys.flatMap((key) => bracket[key] || []).filter(Boolean);
     if (!all.length) return 0;
-    const completed = all.filter((match) => match.winner).length;
+    const completed = all.filter((match) => match?.winner).length;
     return Math.round((completed / all.length) * 100);
   }, [bracket]);
 
   const totalProgressCounts = useMemo(() => {
     const keys = ROUND_PROGRESS_ORDER;
-    const all = keys.flatMap((key) => bracket[key] || []);
-    const completed = all.filter((match) => match.winner).length;
+    const all = keys.flatMap((key) => bracket[key] || []).filter(Boolean);
+    const completed = all.filter((match) => match?.winner).length;
     return { completed, total: all.length };
   }, [bracket]);
 
@@ -493,10 +511,11 @@ export default function BracketView({
   );
 
   const quickSummary = useMemo(() => {
-    const allMatches = Object.values(bracket).flat();
-    const completed = allMatches.filter((match) => match.winner).length;
+    const allMatches = Object.values(bracket).flat().filter(Boolean);
+    const completed = allMatches.filter((match) => match?.winner).length;
     const pending = allMatches.length - completed;
-    const mostAdvanced = [...ROUND_PROGRESS_ORDER].reverse().find((roundKey) => (bracket[roundKey] || []).some((match) => match.winner)) || 'r32';
+    const mostAdvanced =
+      [...ROUND_PROGRESS_ORDER].reverse().find((roundKey) => (bracket[roundKey] || []).some((match) => match?.winner)) || 'r32';
     return { completed, pending, mostAdvanced };
   }, [bracket]);
 
@@ -518,6 +537,13 @@ export default function BracketView({
             : mobileRoundFocus;
 
   const getRoundBadgeClass = (roundKey) => ROUND_BADGE_CLASSES[roundKey] || ROUND_BADGE_CLASSES.r16;
+
+  const getRoundCardMaxWidth = (roundKey) => {
+    if (roundKey === 'sf') return 'clamp(178px, 14vw, 210px)';
+    if (roundKey === 'final' || roundKey === 'third') return 'clamp(190px, 15vw, 230px)';
+    if (roundKey === 'qf') return 'clamp(160px, 13vw, 192px)';
+    return 'clamp(150px, 12vw, 182px)';
+  };
 
   const handleOpenMobileSheet = (roundKey, index, match) => {
     setMobileSheetRoundKey(roundKey);
@@ -569,7 +595,7 @@ export default function BracketView({
   };
 
   const getSideMatches = (roundKey, side) => {
-    const matches = bracket[roundKey] || [];
+    const matches = (bracket[roundKey] || []).filter(Boolean);
     const splitIndex = Math.ceil(matches.length / 2);
     if (side === 'left') {
       return matches.slice(0, splitIndex).map((match, index) => ({ match, sourceIndex: index, sideIndex: index }));
@@ -580,56 +606,126 @@ export default function BracketView({
       .map((match, index) => ({ match, sourceIndex: index + splitIndex, sideIndex: index }));
   };
 
-  const colCenter = (col) => ((col - 0.5) / 9) * 100;
-  const colLeftEdge = (col) => ((col - 1) / 9) * 100;
-  const colRightEdge = (col) => (col / 9) * 100;
-  const rowCenter = (row) => ((row - 0.5) / 16) * 100;
+  const setMatchCardRef = useCallback(
+    (matchId) => (node) => {
+      if (!matchId) return;
+      if (node) cardRefs.current.set(matchId, node);
+      else cardRefs.current.delete(matchId);
+    },
+    []
+  );
 
-  const connectorPaths = [];
+  const connectorLinks = useMemo(() => {
+    const links = [];
 
-  const addRoundConnectors = (roundKey, nextRoundKey, side) => {
-    const currentRows = ROW_STARTS[roundKey];
-    const nextRows = ROW_STARTS[nextRoundKey];
-    const currentCol = side === 'left' ? LEFT_COLUMN_BY_ROUND[roundKey] : RIGHT_COLUMN_BY_ROUND[roundKey];
-    const nextCol = side === 'left' ? LEFT_COLUMN_BY_ROUND[nextRoundKey] : RIGHT_COLUMN_BY_ROUND[nextRoundKey];
+    const pushLink = (fromMatch, toMatch, kind = 'main', side = 'left') => {
+      if (!fromMatch?.id || !toMatch?.id) return;
+      links.push({ id: `${kind}-${side}-${fromMatch.id}-${toMatch.id}`, from: fromMatch.id, to: toMatch.id, kind, side });
+    };
 
-    currentRows.forEach((row, idx) => {
-      const targetRow = nextRows[Math.floor(idx / 2)];
-      const y1 = rowCenter(row);
-      const y2 = rowCenter(targetRow);
+    const connectRounds = (fromRound, toRound) => {
+      const fromLeft = getSideMatches(fromRound, 'left');
+      const toLeft = getSideMatches(toRound, 'left');
+      toLeft.forEach((target, idx) => {
+        pushLink(fromLeft[idx * 2]?.match, target.match, 'main', 'left');
+        pushLink(fromLeft[idx * 2 + 1]?.match, target.match, 'main', 'left');
+      });
 
-      if (side === 'left') {
-        const x1 = colRightEdge(currentCol) - 0.7;
-        const x2 = colLeftEdge(nextCol) + 0.7;
-        const midX = (x1 + x2) / 2;
-        connectorPaths.push(`M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`);
-      } else {
-        const x1 = colLeftEdge(currentCol) + 0.7;
-        const x2 = colRightEdge(nextCol) - 0.7;
-        const midX = (x1 + x2) / 2;
-        connectorPaths.push(`M ${x1} ${y1} H ${midX} V ${y2} H ${x2}`);
-      }
-    });
-  };
+      const fromRight = getSideMatches(fromRound, 'right');
+      const toRight = getSideMatches(toRound, 'right');
+      toRight.forEach((target, idx) => {
+        pushLink(fromRight[idx * 2]?.match, target.match, 'main', 'right');
+        pushLink(fromRight[idx * 2 + 1]?.match, target.match, 'main', 'right');
+      });
+    };
 
-  addRoundConnectors('r32', 'r16', 'left');
-  addRoundConnectors('r16', 'qf', 'left');
-  addRoundConnectors('qf', 'sf', 'left');
-  addRoundConnectors('r32', 'r16', 'right');
-  addRoundConnectors('r16', 'qf', 'right');
-  addRoundConnectors('qf', 'sf', 'right');
+    connectRounds('r32', 'r16');
+    connectRounds('r16', 'qf');
+    connectRounds('qf', 'sf');
 
-  const leftSfY = rowCenter(ROW_STARTS.sf[0]);
-  const rightSfY = rowCenter(ROW_STARTS.sf[0]);
-  const trophyY = rowCenter(TROPHY_ROW);
-  const finalY = rowCenter(FINAL_ROW);
-  const finalLeftX = colRightEdge(LEFT_COLUMN_BY_ROUND.sf) - 0.7;
-  const finalRightX = colLeftEdge(RIGHT_COLUMN_BY_ROUND.sf) + 0.7;
-  const centerX = colCenter(5);
-  const centerJoinY = trophyY - 4.8;
-  const centerJoinLeftX = centerX - 1.2;
-  const centerJoinRightX = centerX + 1.2;
-  const thirdY = rowCenter(THIRD_ROW);
+    return links;
+  }, [bracket]);
+
+  const recalculateConnectorOverlay = useCallback(() => {
+    const canvas = bracketCanvasRef.current;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+
+    const paths = connectorLinks
+      .map((link) => {
+        const fromEl = cardRefs.current.get(link.from);
+        const toEl = cardRefs.current.get(link.to);
+        if (!fromEl || !toEl) return null;
+
+        const fromRect = fromEl.getBoundingClientRect();
+        const toRect = toEl.getBoundingClientRect();
+
+        const sx = (link.side === 'right' ? fromRect.left : fromRect.right) - canvasRect.left;
+        const sy = fromRect.top + fromRect.height / 2 - canvasRect.top;
+        const tx = (link.side === 'right' ? toRect.right : toRect.left) - canvasRect.left;
+        const ty = toRect.top + toRect.height / 2 - canvasRect.top;
+
+        const distance = Math.max(36, Math.abs(tx - sx) * 0.35);
+        const c1x = link.side === 'right' ? sx - distance : sx + distance;
+        const c2x = link.side === 'right' ? tx + distance : tx - distance;
+        const d = `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ty}, ${tx} ${ty}`;
+
+        return { id: link.id, d, kind: link.kind };
+      })
+      .filter(Boolean);
+
+    setConnectorOverlay({ width: canvas.scrollWidth, height: canvas.scrollHeight, paths });
+
+    const trophyEl = bracketCenterRef.current;
+    const finalEl = cardRefs.current.get((bracket.final || []).filter(Boolean)[0]?.id);
+    const thirdEl = cardRefs.current.get((bracket.third || []).filter(Boolean)[0]?.id);
+    const sfMatches = (bracket.sf || []).filter(Boolean);
+    const sfSplit = Math.ceil(sfMatches.length / 2);
+    const leftSfEl = cardRefs.current.get(sfMatches[0]?.id);
+    const rightSfEl = cardRefs.current.get(sfMatches[sfSplit]?.id);
+
+    let gold = '';
+    let bronze = '';
+
+    if (trophyEl && finalEl && leftSfEl && rightSfEl) {
+      const trophyRect = trophyEl.getBoundingClientRect();
+      const finalRect = finalEl.getBoundingClientRect();
+      const leftSfRect = leftSfEl.getBoundingClientRect();
+      const rightSfRect = rightSfEl.getBoundingClientRect();
+
+      const cx = trophyRect.left + trophyRect.width / 2 - canvasRect.left;
+      const leftX = leftSfRect.right - canvasRect.left + 8;
+      const rightX = rightSfRect.left - canvasRect.left - 8;
+      const leftY = leftSfRect.top + leftSfRect.height / 2 - canvasRect.top;
+      const rightY = rightSfRect.top + rightSfRect.height / 2 - canvasRect.top;
+      const barY = Math.min(leftY, rightY) - 18;
+      const trophyY = trophyRect.bottom - canvasRect.top + 4;
+      const finalY = finalRect.top - canvasRect.top - 10;
+
+      gold = `M ${leftX} ${leftY} C ${leftX + 44} ${leftY}, ${cx - 72} ${barY}, ${cx} ${barY} C ${cx + 72} ${barY}, ${rightX - 44} ${rightY}, ${rightX} ${rightY} M ${cx} ${trophyY} C ${cx} ${trophyY + 18}, ${cx} ${finalY - 20}, ${cx} ${finalY}`;
+    }
+
+    if (finalEl && thirdEl && leftSfEl && rightSfEl) {
+      const finalRect = finalEl.getBoundingClientRect();
+      const thirdRect = thirdEl.getBoundingClientRect();
+      const leftSfRect = leftSfEl.getBoundingClientRect();
+      const rightSfRect = rightSfEl.getBoundingClientRect();
+
+      const cx = finalRect.left + finalRect.width / 2 - canvasRect.left;
+      const leftX = leftSfRect.right - canvasRect.left + 8;
+      const rightX = rightSfRect.left - canvasRect.left - 8;
+      const leftY = leftSfRect.top + leftSfRect.height / 2 - canvasRect.top + 24;
+      const rightY = rightSfRect.top + rightSfRect.height / 2 - canvasRect.top + 24;
+      const barY = Math.max(leftY, rightY) + 18;
+      const finalY = finalRect.bottom - canvasRect.top + 8;
+      const thirdY = thirdRect.top - canvasRect.top - 10;
+
+      bronze = `M ${leftX} ${leftY} C ${leftX + 44} ${leftY}, ${cx - 72} ${barY}, ${cx} ${barY} C ${cx + 72} ${barY}, ${rightX - 44} ${rightY}, ${rightX} ${rightY} M ${cx} ${finalY} C ${cx} ${finalY + 16}, ${cx} ${thirdY - 20}, ${cx} ${thirdY}`;
+    }
+
+    setCenterDecorPaths({ gold, bronze });
+  }, [connectorLinks]);
 
   const getNextMatchRef = (roundKey, index) => {
     const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
@@ -740,6 +836,34 @@ export default function BracketView({
     setPendingAutoAdvance(null);
   }, [pendingAutoAdvance, bracket, isMobile, mobileViewMode]);
 
+  useEffect(() => {
+    if (isMobile && mobileViewMode !== 'bracket') return;
+
+    const canvas = bracketCanvasRef.current;
+    if (!canvas) return;
+
+    let frameId = null;
+    const scheduleMeasure = () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        recalculateConnectorOverlay();
+      });
+    };
+
+    scheduleMeasure();
+
+    const resizeObserver = new ResizeObserver(() => scheduleMeasure());
+    resizeObserver.observe(canvas);
+    cardRefs.current.forEach((node) => resizeObserver.observe(node));
+    window.addEventListener('resize', scheduleMeasure);
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+    };
+  }, [recalculateConnectorOverlay, bracket, isMobile, mobileViewMode]);
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -778,6 +902,31 @@ export default function BracketView({
         >
           Siguiente pendiente
         </button>
+        {(!isMobile || mobileViewMode === 'bracket') && (
+          <div className="ml-auto flex items-center gap-1 rounded-full border border-[#CBD5E1] bg-white px-2 py-1 dark:border-[#25324A] dark:bg-[#121A2B]">
+            <button
+              type="button"
+              onClick={() => setBracketZoom((z) => Math.max(0.8, Number((z - 0.1).toFixed(2))))}
+              className="rounded-md px-2 py-0.5 text-xs font-semibold text-[#334155] hover:bg-[#F1F5F9] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => setBracketZoom(1)}
+              className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-[#334155] hover:bg-[#F1F5F9] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+            >
+              {Math.round(bracketZoom * 100)}%
+            </button>
+            <button
+              type="button"
+              onClick={() => setBracketZoom((z) => Math.min(1.35, Number((z + 0.1).toFixed(2))))}
+              className="rounded-md px-2 py-0.5 text-xs font-semibold text-[#334155] hover:bg-[#F1F5F9] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+            >
+              +
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -1210,10 +1359,16 @@ export default function BracketView({
           {(!isMobile || mobileViewMode === 'bracket') && (
             <div className="rounded-2xl border border-[#E2E8F0] bg-[#F1F5F9] p-4 dark:border-[#22324D] dark:bg-[#0B1730]">
             <div ref={bracketScrollRef} className="bracket-mobile-scroll relative overflow-x-auto pb-4">
-              <div className="min-w-[980px] md:min-w-[1250px]">
+              <div
+                ref={bracketCanvasRef}
+                className="relative w-max min-w-full"
+                style={{ transform: `scale(${bracketZoom})`, transformOrigin: 'top center' }}
+              >
                 <svg
-                  className="pointer-events-none absolute left-0 top-0 h-full w-full opacity-45"
-                  viewBox="0 0 100 100"
+                  className="pointer-events-none absolute left-0 top-0 z-0"
+                  width={Math.max(connectorOverlay.width, 1)}
+                  height={Math.max(connectorOverlay.height, 1)}
+                  viewBox={`0 0 ${Math.max(connectorOverlay.width, 1)} ${Math.max(connectorOverlay.height, 1)}`}
                   preserveAspectRatio="none"
                 >
                   <defs>
@@ -1221,77 +1376,73 @@ export default function BracketView({
                       <stop offset="0%" stopColor="#38BDF8" />
                       <stop offset="100%" stopColor="#F6C453" />
                     </linearGradient>
+                    <linearGradient id="centerGold" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FDE68A" />
+                      <stop offset="100%" stopColor="#CA8A04" />
+                    </linearGradient>
+                    <linearGradient id="centerBronze" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F6C7A5" />
+                      <stop offset="100%" stopColor="#B45309" />
+                    </linearGradient>
                   </defs>
 
-                  {connectorPaths.map((path, idx) => (
+                  {centerDecorPaths.gold && (
                     <motion.path
-                      key={`connector-${idx}`}
-                      d={path}
-                      className="bracket-connector"
-                      stroke="url(#lineGrad)"
+                      d={centerDecorPaths.gold}
+                      stroke="url(#centerGold)"
+                      fill="none"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 0.45 }}
+                    />
+                  )}
+
+                  {centerDecorPaths.bronze && (
+                    <motion.path
+                      d={centerDecorPaths.bronze}
+                      stroke="url(#centerBronze)"
+                      fill="none"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      opacity="0.9"
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 0.42, delay: 0.04 }}
+                    />
+                  )}
+
+                  {connectorOverlay.paths.map((path, idx) => (
+                    <motion.path
+                      key={path.id}
+                      d={path.d}
+                      className={path.kind === 'third' ? 'bracket-connector-sub' : 'bracket-connector'}
+                      stroke={path.kind === 'third' ? '#CDA24A' : 'url(#lineGrad)'}
                       fill="none"
                       initial={{ pathLength: 0 }}
                       animate={{ pathLength: 1 }}
                       transition={{ duration: 0.35, delay: idx * 0.02 }}
+                      strokeLinecap="round"
                     />
                   ))}
-
-                  <motion.path
-                    d={`M ${finalLeftX} ${leftSfY} H ${centerJoinLeftX} V ${centerJoinY} H ${centerX}`}
-                    className="bracket-connector-main"
-                    stroke="#F6C453"
-                    fill="none"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.35, delay: 0.25 }}
-                  />
-                  <motion.path
-                    d={`M ${finalRightX} ${rightSfY} H ${centerJoinRightX} V ${centerJoinY} H ${centerX}`}
-                    className="bracket-connector-main"
-                    stroke="#F6C453"
-                    fill="none"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.35, delay: 0.3 }}
-                  />
-                  <motion.path
-                    d={`M ${centerX} ${centerJoinY} V ${finalY - 2.8}`}
-                    className="bracket-connector-main"
-                    stroke="#F6C453"
-                    fill="none"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.35, delay: 0.33 }}
-                  />
-                  <motion.path
-                    d={`M ${centerX} ${finalY + 2.8} V ${thirdY - 2.8}`}
-                    className="bracket-connector-sub"
-                    stroke="#CDA24A"
-                    fill="none"
-                    opacity="0.7"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.35, delay: 0.38 }}
-                  />
                 </svg>
 
                 <div
                   className="relative z-10 grid gap-3"
                   style={{
-                    gridTemplateColumns: 'repeat(9, minmax(108px, 1fr))',
-                    gridTemplateRows: 'repeat(16, minmax(74px, auto))',
+                    gridTemplateColumns: 'repeat(9, clamp(136px, 13vw, 168px))',
                   }}
                 >
-                  {sideRoundOrder.map((roundKey) =>
-                    getSideMatches(roundKey, 'left').map(({ match, sourceIndex, sideIndex }) => (
-                      <div
-                        key={match.id}
-                        style={{
-                          gridColumn: LEFT_COLUMN_BY_ROUND[roundKey],
-                          gridRow: ROW_STARTS[roundKey][sideIndex],
-                        }}
-                      >
-                        <div className="mx-auto w-full max-w-[210px] md:max-w-[245px]">
+                  {[
+                    { roundKey: 'r32', side: 'left' },
+                    { roundKey: 'r16', side: 'left' },
+                    { roundKey: 'qf', side: 'left' },
+                    { roundKey: 'sf', side: 'left' },
+                  ].map(({ roundKey, side }) => (
+                    <div key={`col-${side}-${roundKey}`} className="flex h-full flex-col justify-evenly gap-3">
+                      {getSideMatches(roundKey, side).map(({ match, sourceIndex }) => (
+                        <div key={match.id} className="mx-auto w-full" style={{ maxWidth: getRoundCardMaxWidth(roundKey) }}>
                           <div className="mb-1 flex items-center justify-between gap-2">
                             <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(roundKey)}`}>
                               {ROUND_LABELS[roundKey]}
@@ -1301,6 +1452,7 @@ export default function BracketView({
                             </span>
                           </div>
                           <MatchCard
+                            cardRef={setMatchCardRef(match.id)}
                             match={match}
                             teamMap={teamMap}
                             outcomes={outcomes}
@@ -1315,64 +1467,26 @@ export default function BracketView({
                             scheduleText={getScheduleText(roundKey, sourceIndex)}
                           />
                         </div>
-                      </div>
-                    ))
-                  )}
+                      ))}
+                    </div>
+                  ))}
 
-                  {sideRoundOrder.map((roundKey) =>
-                    getSideMatches(roundKey, 'right').map(({ match, sourceIndex, sideIndex }) => (
-                      <div
-                        key={match.id}
-                        style={{
-                          gridColumn: RIGHT_COLUMN_BY_ROUND[roundKey],
-                          gridRow: ROW_STARTS[roundKey][sideIndex],
-                        }}
-                      >
-                        <div className="mx-auto w-full max-w-[210px] md:max-w-[245px]">
-                          <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
-                              {getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total}
-                            </span>
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(roundKey)}`}>
-                              {ROUND_LABELS[roundKey]}
-                            </span>
-                          </div>
-                          <MatchCard
-                            match={match}
-                            teamMap={teamMap}
-                            outcomes={outcomes}
-                            roundMatches={bracket[roundKey]}
-                            roundKey={roundKey}
-                            index={sourceIndex}
-                            disabled={false}
-                            onPickWinner={handleWinnerSelection}
-                            onSetMatchTeam={onSetMatchTeam}
-                            active={selectedMatchId === match.id}
-                            onActivate={() => activateMatch(match, roundKey, sourceIndex)}
-                            scheduleText={getScheduleText(roundKey, sourceIndex)}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  )}
-
-                  <div ref={bracketCenterRef} style={{ gridColumn: 5, gridRow: TROPHY_ROW }}>
-                    <div className="mx-auto w-full max-w-[180px] md:max-w-[250px]">
+                  <div className="flex h-full flex-col items-center">
+                    <div ref={bracketCenterRef} className="mx-auto w-full max-w-[180px] md:max-w-[250px]">
                       <img src="/world-cup-trophy.png" alt="Trofeo" className="mx-auto h-[180px] w-auto object-contain md:h-[240px]" />
                     </div>
-                  </div>
 
-                  <div style={{ gridColumn: 5, gridRow: FINAL_ROW }}>
-                    <div className="mx-auto w-full max-w-[220px] md:max-w-[260px]">
+                    <div className="mx-auto mt-2 w-full" style={{ maxWidth: getRoundCardMaxWidth('final') }}>
                       <div className="mb-2 flex items-center justify-center gap-2">
                         <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getRoundBadgeClass('final')}`}>{ROUND_LABELS.final}</span>
                         <span className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">
                           {getRoundProgressCounts('final').completed}/{getRoundProgressCounts('final').total}
                         </span>
                       </div>
-                      {bracket.final.map((match, index) => (
+                      {(bracket.final || []).filter(Boolean).map((match, index) => (
                         <MatchCard
                           key={match.id}
+                          cardRef={setMatchCardRef(match.id)}
                           match={match}
                           teamMap={teamMap}
                           outcomes={outcomes}
@@ -1388,19 +1502,18 @@ export default function BracketView({
                         />
                       ))}
                     </div>
-                  </div>
 
-                  <div style={{ gridColumn: 5, gridRow: THIRD_ROW }}>
-                    <div className="mx-auto w-full max-w-[220px] md:max-w-[260px]">
+                    <div className="mx-auto mt-auto w-full" style={{ maxWidth: getRoundCardMaxWidth('third') }}>
                       <div className="mb-2 flex items-center justify-center gap-2">
                         <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getRoundBadgeClass('third')}`}>{ROUND_LABELS.third}</span>
                         <span className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">
                           {getRoundProgressCounts('third').completed}/{getRoundProgressCounts('third').total}
                         </span>
                       </div>
-                      {bracket.third.map((match, index) => (
+                      {(bracket.third || []).filter(Boolean).map((match, index) => (
                         <MatchCard
                           key={match.id}
+                          cardRef={setMatchCardRef(match.id)}
                           match={match}
                           teamMap={teamMap}
                           outcomes={outcomes}
@@ -1417,6 +1530,43 @@ export default function BracketView({
                       ))}
                     </div>
                   </div>
+
+                  {[
+                    { roundKey: 'sf', side: 'right' },
+                    { roundKey: 'qf', side: 'right' },
+                    { roundKey: 'r16', side: 'right' },
+                    { roundKey: 'r32', side: 'right' },
+                  ].map(({ roundKey, side }) => (
+                    <div key={`col-${side}-${roundKey}`} className="flex h-full flex-col justify-evenly gap-3">
+                      {getSideMatches(roundKey, side).map(({ match, sourceIndex }) => (
+                        <div key={match.id} className="mx-auto w-full" style={{ maxWidth: getRoundCardMaxWidth(roundKey) }}>
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(roundKey)}`}>
+                              {ROUND_LABELS[roundKey]}
+                            </span>
+                            <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
+                              {getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total}
+                            </span>
+                          </div>
+                          <MatchCard
+                            cardRef={setMatchCardRef(match.id)}
+                            match={match}
+                            teamMap={teamMap}
+                            outcomes={outcomes}
+                            roundMatches={bracket[roundKey]}
+                            roundKey={roundKey}
+                            index={sourceIndex}
+                            disabled={false}
+                            onPickWinner={handleWinnerSelection}
+                            onSetMatchTeam={onSetMatchTeam}
+                            active={selectedMatchId === match.id}
+                            onActivate={() => activateMatch(match, roundKey, sourceIndex)}
+                            scheduleText={getScheduleText(roundKey, sourceIndex)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

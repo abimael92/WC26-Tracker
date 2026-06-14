@@ -71,8 +71,7 @@ export default function GroupStage({
                 </div>
               </header>
 
-              <div className="mb-2 rounded-md border border-[#D8E2F0] bg-[#F8FAFC] px-2 py-1 text-[10px] text-[#475569] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#9CA3AF]">
-                <p className="hidden sm:block">PJ: Partidos jugados · PTS: Puntos · DG: Diferencia de gol · GF: Goles a favor · GC: Goles en contra</p>
+              <div >
                 <details className="sm:hidden">
                   <summary className="cursor-pointer">Ver siglas de tabla</summary>
                   <p className="mt-1">PJ: Jugados · PTS: Puntos · DG: Dif. gol · GF: A favor · GC: En contra</p>
@@ -94,6 +93,7 @@ export default function GroupStage({
                   {standings.map((row, idx) => {
                     const team = teamMap[row.teamId];
                     const adv = idx < 2 || bestThirdIds.has(row.teamId);
+                    const eliminated = !adv;
                     const isSelected = selectedTeamId === row.teamId;
                     const samePointsRows = standings.filter((entry) => entry.points === row.points);
                     const tieBreakByGd = samePointsRows.length > 1 && new Set(samePointsRows.map((entry) => entry.gd)).size > 1;
@@ -107,10 +107,12 @@ export default function GroupStage({
                     return (
                       <tr
                         key={row.teamId}
-                        className={`${adv ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#0F172A] dark:text-[#FFFFFF]'} cursor-pointer border-b border-[#D8E2F0] dark:border-[#25324A] ${
+                        className={`${adv ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#475569] dark:text-[#9CA3AF]'} cursor-pointer border-b border-[#D8E2F0] dark:border-[#25324A] ${
                           isSelected
                             ? 'bg-[#DBEAFE] font-semibold shadow-[inset_0_0_0_1px_rgba(37,99,235,0.45),inset_3px_0_0_0_#2563EB] dark:bg-[#1A2740] dark:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.55),inset_3px_0_0_0_#3B82F6]'
-                            : 'odd:bg-[#F4F7FC] even:bg-white hover:bg-[#EEF3FB] dark:odd:bg-[#121A2B] dark:even:bg-[#121A2B] dark:hover:bg-[#1A2740]'
+                            : eliminated
+                              ? 'bg-[#FEF2F2] shadow-[inset_3px_0_0_0_#DC2626] hover:bg-[#FEE2E2] dark:bg-[#2A1418] dark:shadow-[inset_3px_0_0_0_#EF4444] dark:hover:bg-[#3A1217]'
+                              : 'odd:bg-[#F4F7FC] even:bg-white hover:bg-[#EEF3FB] dark:odd:bg-[#121A2B] dark:even:bg-[#121A2B] dark:hover:bg-[#1A2740]'
                         }`}
                         onClick={() => onSelectTeam?.(row.teamId)}
                       >
@@ -138,7 +140,7 @@ export default function GroupStage({
                               alt={team.name}
                               className="h-4 w-4 rounded-full"
                             />
-                            <span className="truncate">{team.name}</span>
+                            <span className={`truncate ${eliminated ? 'opacity-85' : ''}`}>{team.name}</span>
                             <span className="text-[10px] tracking-wide text-[var(--muted-text-aa)] dark:text-[#7A879D]">{team.fifaCode}</span>
                           </div>
                         </td>
@@ -214,7 +216,7 @@ export default function GroupStage({
                 className={`rounded-lg border px-3 py-2 text-xs ${
                   qualified
                     ? 'border-[#059669] bg-[#F1F5F9] text-[#059669] dark:border-[#10B981] dark:bg-[#1A2235] dark:text-[#10B981]'
-                    : 'border-[#D8E2F0] bg-white text-[#42526B] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7]'
+                    : 'border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C] dark:border-[#7F1D1D] dark:bg-[#3A1217] dark:text-[#FCA5A5]'
                 }`}
               >
                 {idx + 1}. {team.name} ({entry.group}) · {entry.points} pts · DG {entry.gd}

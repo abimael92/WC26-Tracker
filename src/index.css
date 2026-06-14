@@ -256,9 +256,26 @@ body {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent-primary) 80%, transparent);
-  outline-offset: 4px;
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-primary) 82%, transparent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-primary) 24%, transparent);
+  border-radius: 0.5rem;
+}
+
+.a11y-mode button:focus-visible,
+.a11y-mode input:focus-visible,
+.a11y-mode select:focus-visible,
+.a11y-mode textarea:focus-visible,
+.a11y-mode a:focus-visible,
+.a11y-mode summary:focus-visible,
+.a11y-mode [role='button']:focus-visible {
+  outline-width: 3px;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent-primary) 28%, transparent);
 }
 
 a {

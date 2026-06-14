@@ -9,8 +9,6 @@ import { getGroupMatchScheduleById } from './lib/schedule';
 import { useTournamentStore } from './store/useTournamentStore';
 
 const ACTIVE_SECTION_STORAGE_KEY = 'fifa-active-section';
-const A11Y_MODE_STORAGE_KEY = 'fifa-a11y-mode';
-const BGM_ENABLED_STORAGE_KEY = 'fifa-bgm-enabled';
 
 const createTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -50,35 +48,17 @@ export default function App() {
   const [selectedStandingTeamId, setSelectedStandingTeamId] = useState(null);
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
   const bgmAudioRef = useRef(null);
+  const [bgmEnabled, setBgmEnabled] = useState(false);
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === 'undefined') return 'groups';
     const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
     return saved === 'bracket' ? 'bracket' : 'groups';
-  });
-  const [a11yMode, setA11yMode] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(A11Y_MODE_STORAGE_KEY) === 'on';
-  });
-  const [bgmEnabled, setBgmEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    const saved = window.localStorage.getItem(BGM_ENABLED_STORAGE_KEY);
-    return saved !== 'off';
   });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, activeSection);
   }, [activeSection]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(A11Y_MODE_STORAGE_KEY, a11yMode ? 'on' : 'off');
-  }, [a11yMode]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(BGM_ENABLED_STORAGE_KEY, bgmEnabled ? 'on' : 'off');
-  }, [bgmEnabled]);
 
   useEffect(() => {
     const audio = bgmAudioRef.current;
@@ -234,7 +214,7 @@ export default function App() {
   const rootTheme = 'theme-dark dark';
 
   return (
-    <div className={`${rootTheme} ${a11yMode ? 'a11y-mode' : ''} min-h-screen bg-app text-[#0F172A] dark:text-[#FFFFFF]`}>
+    <div className={`${rootTheme} a11y-mode min-h-screen bg-app text-[#0F172A] dark:text-[#FFFFFF]`}>
       <audio ref={bgmAudioRef} src={bracketThemeSong} preload="auto" />
       <div className="animated-bg" />
       <ChampionOverlay open={showChampion} champion={champion} />
@@ -267,26 +247,6 @@ export default function App() {
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
                 Compartir como imagen
-              </button>
-              <button
-                onClick={() => setA11yMode((value) => !value)}
-                className={`rounded-full border px-3 py-2 font-semibold transition-colors ${
-                  a11yMode
-                    ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6] dark:bg-[#1A2740] dark:text-[#8FB4FF]'
-                    : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]'
-                }`}
-              >
-                Accesible: {a11yMode ? 'ON' : 'OFF'}
-              </button>
-              <button
-                onClick={() => setBgmEnabled((value) => !value)}
-                className={`rounded-full border px-3 py-2 font-semibold transition-colors ${
-                  bgmEnabled
-                    ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6] dark:bg-[#1A2740] dark:text-[#8FB4FF]'
-                    : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]'
-                }`}
-              >
-                Música: {bgmEnabled ? 'ON' : 'OFF'}
               </button>
             </div>
           </div>
@@ -426,8 +386,9 @@ export default function App() {
             : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]'
         }`}
       >
-        {bgmEnabled ? '⏸ Pausar música' : '▶ Reproducir música'}
+        {bgmEnabled ? '⏸ Pausar música' : '▶'}
       </button>
+
     </div>
   );
 }
