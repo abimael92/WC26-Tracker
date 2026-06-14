@@ -52,6 +52,7 @@ const colorLegend = {
 };
 
 const MOBILE_BRACKET_VIEW_STORAGE_KEY = 'fifa-mobile-bracket-view';
+const MOBILE_ROUND_FOCUS_STORAGE_KEY = 'fifa-mobile-round-focus';
 
 const formatGroupList = (groups) => groups.join(', ');
 
@@ -212,6 +213,7 @@ function MatchCard({
 }) {
   const teamA = match.teamA ? teamMap[match.teamA] : null;
   const teamB = match.teamB ? teamMap[match.teamB] : null;
+  const isComplete = Boolean(match.winner);
   const showSeedTemplate = roundKey === 'r32';
   const allTeams = Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const candidateIdsA = showSeedTemplate ? getSlotCandidateIds(match.slotA, outcomes) : [];
@@ -243,6 +245,15 @@ function MatchCard({
         transition={{ duration: 0.2 }}
         onClick={onActivate}
       >
+        <span
+          className={`absolute right-2 top-2 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+            isComplete
+              ? 'border-[#059669]/30 bg-[#ECFDF5] text-[#059669] dark:border-[#10B981]/40 dark:bg-[#103225] dark:text-[#34D399]'
+              : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#64748B] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#94A3B8]'
+          }`}
+        >
+          {isComplete ? 'Completo' : 'Pendiente'}
+        </span>
         {showSeedTemplate ? (
           <div className="space-y-2">
             <div className="flex items-start gap-2">
@@ -356,6 +367,14 @@ export default function BracketView({
   const [mobilePressTimerId, setMobilePressTimerId] = useState(null);
   const [selectedMatchId, setSelectedMatchId] = useState(null);
   const [selectedMatchRef, setSelectedMatchRef] = useState(null);
+  const [autoAdvanceEnabled, setAutoAdvanceEnabled] = useState(true);
+  const [pendingAutoAdvance, setPendingAutoAdvance] = useState(null);
+  const [mobileRoundFocus, setMobileRoundFocus] = useState(() => {
+    if (typeof window === 'undefined') return 'all';
+    const saved = window.localStorage.getItem(MOBILE_ROUND_FOCUS_STORAGE_KEY);
+    return ['all', 'r16', 'qf', 'sf'].includes(saved) ? saved : 'all';
+  });
+  const [scheduleRoundFilter, setScheduleRoundFilter] = useState('all');
   const bracketScrollRef = useRef(null);
   const bracketCenterRef = useRef(null);
 
@@ -418,6 +437,12 @@ export default function BracketView({
     return Math.round((completed / matches.length) * 100);
   };
 
+  const getRoundProgressCounts = (roundKey) => {
+    const matches = bracket[roundKey] || [];
+    const completed = matches.filter((match) => match.winner).length;
+    return { completed, total: matches.length };
+  };
+
   const totalCompletion = useMemo(() => {
     const keys = ['r32', 'r16', 'qf', 'sf', 'final'];
     const all = keys.flatMap((key) => bracket[key] || []);
@@ -425,6 +450,18 @@ export default function BracketView({
     const completed = all.filter((match) => match.winner).length;
     return Math.round((completed / all.length) * 100);
   }, [bracket]);
+
+  const totalProgressCounts = useMemo(() => {
+    const keys = ['r32', 'r16', 'qf', 'sf', 'final'];
+    const all = keys.flatMap((key) => bracket[key] || []);
+    const completed = all.filter((match) => match.winner).length;
+    return { completed, total: all.length };
+  }, [bracket]);
+
+  const filteredScheduleRows = useMemo(
+    () => (scheduleRoundFilter === 'all' ? allScheduleRows : allScheduleRows.filter((row) => row.roundKey === scheduleRoundFilter)),
+    [allScheduleRows, scheduleRoundFilter]
+  );
 
   const handleOpenMobileSheet = (roundKey, index, match) => {
     setMobileSheetRoundKey(roundKey);
@@ -456,7 +493,7 @@ export default function BracketView({
     if (isSwipeLeft && match.teamA && match.teamB && !match.winner) {
       const candidates = [match.teamA, match.teamB];
       const winnerId = candidates[Math.floor(Math.random() * candidates.length)];
-      onPickWinner(roundKey, index, winnerId);
+      handleWinnerSelection(roundKey, index, winnerId);
     }
   };
 
@@ -538,6 +575,53 @@ export default function BracketView({
   const centerJoinRightX = centerX + 1.2;
   const thirdY = rowCenter(THIRD_ROW);
 
+  const getNextMatchRef = (roundKey, index) => {
+    const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
+    const currentRound = bracket[roundKey] || [];
+    if (index + 1 < currentRound.length) {
+      return { roundKey, index: index + 1 };
+    }
+
+    const currentIndex = order.indexOf(roundKey);
+    if (currentIndex === -1) return null;
+
+    for (let i = currentIndex + 1; i < order.length; i += 1) {
+      const nextRoundKey = order[i];
+      const nextRound = bracket[nextRoundKey] || [];
+      if (nextRound.length) {
+        return { roundKey: nextRoundKey, index: 0 };
+      }
+    }
+
+    return null;
+  };
+
+  const jumpToNextPendingMatch = () => {
+    const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
+    for (const roundKey of order) {
+      const matches = bracket[roundKey] || [];
+      const index = matches.findIndex((match) => match.teamA && match.teamB && !match.winner);
+      if (index !== -1) {
+        const match = matches[index];
+        activateMatch(match, roundKey, index);
+        if (isMobile && mobileViewMode === 'list') {
+          setMobileRoundFocus('all');
+          scrollToMobileRound(roundKey);
+        }
+        return;
+      }
+    }
+  };
+
+  const handleWinnerSelection = (roundKey, index, winnerId) => {
+    if (!winnerId) return;
+    onPickWinner(roundKey, index, winnerId);
+
+    if (!autoAdvanceEnabled) return;
+    const nextRef = getNextMatchRef(roundKey, index);
+    if (nextRef) setPendingAutoAdvance(nextRef);
+  };
+
   const activateMatch = (match, roundKey, index) => {
     setSelectedMatchId(match.id);
     setSelectedMatchRef({ roundKey, index, matchId: match.id });
@@ -578,6 +662,28 @@ export default function BracketView({
     window.localStorage.setItem(MOBILE_BRACKET_VIEW_STORAGE_KEY, mobileViewMode);
   }, [mobileViewMode]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(MOBILE_ROUND_FOCUS_STORAGE_KEY, mobileRoundFocus);
+  }, [mobileRoundFocus]);
+
+  useEffect(() => {
+    if (!pendingAutoAdvance) return;
+
+    const nextMatch = bracket[pendingAutoAdvance.roundKey]?.[pendingAutoAdvance.index];
+    if (!nextMatch) {
+      setPendingAutoAdvance(null);
+      return;
+    }
+
+    activateMatch(nextMatch, pendingAutoAdvance.roundKey, pendingAutoAdvance.index);
+    if (isMobile && mobileViewMode === 'list') {
+      scrollToMobileRound(pendingAutoAdvance.roundKey);
+    }
+
+    setPendingAutoAdvance(null);
+  }, [pendingAutoAdvance, bracket, isMobile, mobileViewMode]);
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -599,6 +705,22 @@ export default function BracketView({
           className="rounded-full border border-[#CBD5E1] bg-white px-3 py-1 text-xs text-[#334155] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
         >
           {showScheduleView ? 'Ocultar calendario' : 'Mostrar calendario'}
+        </button>
+        <button
+          onClick={() => setAutoAdvanceEnabled((value) => !value)}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+            autoAdvanceEnabled
+              ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/40 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
+              : 'border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
+          }`}
+        >
+          Auto-avance: {autoAdvanceEnabled ? 'ON' : 'OFF'}
+        </button>
+        <button
+          onClick={jumpToNextPendingMatch}
+          className="rounded-full border border-[#CBD5E1] bg-white px-3 py-1 text-xs font-semibold text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+        >
+          Siguiente pendiente
         </button>
       </div>
 
@@ -664,7 +786,22 @@ export default function BracketView({
 
           {showScheduleView && (
             <div className="rounded-2xl border border-[#D8E2F0] bg-white p-3 dark:border-[#25324A] dark:bg-[#121A2B]">
-              <p className="mb-2 font-display text-xl text-[#2563EB] dark:text-[#F6C453]">Calendario de partidos (hora local)</p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="font-display text-xl text-[#2563EB] dark:text-[#F6C453]">Calendario de partidos (hora local)</p>
+                <select
+                  value={scheduleRoundFilter}
+                  onChange={(e) => setScheduleRoundFilter(e.target.value)}
+                  className="rounded-md border border-[#D8E2F0] bg-white px-2 py-1 text-xs text-[#334155] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7]"
+                >
+                  <option value="all">Todas las rondas</option>
+                  <option value="r32">Dieciseisavos</option>
+                  <option value="r16">Octavos</option>
+                  <option value="qf">Cuartos</option>
+                  <option value="sf">Semifinales</option>
+                  <option value="third">Tercer lugar</option>
+                  <option value="final">Final</option>
+                </select>
+              </div>
               <div className="max-h-64 overflow-auto rounded-lg border border-[#D8E2F0] dark:border-[#25324A]">
                 <table className="w-full text-left text-xs sm:text-sm">
                   <thead className="bg-[#F4F7FC] text-[#0F172A] dark:bg-[#1A2740] dark:text-[#A9B4C7]">
@@ -677,7 +814,7 @@ export default function BracketView({
                     </tr>
                   </thead>
                   <tbody>
-                    {allScheduleRows.map((row) => {
+                    {filteredScheduleRows.map((row) => {
                       const local = formatMatchScheduleLocal(row);
                       return (
                         <tr key={row.id} className="border-t border-[#D8E2F0] text-[#0F172A] dark:border-[#25324A] dark:text-[#FFFFFF]">
@@ -722,17 +859,42 @@ export default function BracketView({
                   ))}
                 </div>
 
+                <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                  {[
+                    { key: 'all', label: 'Todas' },
+                    { key: 'r16', label: 'Octavos' },
+                    { key: 'qf', label: 'Cuartos' },
+                    { key: 'sf', label: 'Semis' },
+                  ].map((option) => (
+                    <button
+                      key={`focus-${option.key}`}
+                      onClick={() => setMobileRoundFocus(option.key)}
+                      className={`min-h-[40px] rounded-full border px-3 text-xs font-semibold transition-colors ${
+                        mobileRoundFocus === option.key
+                          ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
+                          : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="h-2 w-full rounded-full bg-[#F1F5F9] dark:bg-[#1A2235]">
                   <div className="h-2 rounded-full bg-[#2563EB] dark:bg-[#3B82F6]" style={{ width: `${totalCompletion}%` }} />
                 </div>
-                <p className="mt-1 text-[11px] text-[#475569] dark:text-[#9CA3AF]">Progreso del knockout: {totalCompletion}%</p>
+                <p className="mt-1 text-[11px] text-[#475569] dark:text-[#9CA3AF]">
+                  Progreso del knockout: {totalCompletion}% ({totalProgressCounts.completed}/{totalProgressCounts.total})
+                </p>
               </div>
 
               {compactRoundOrder.map((roundKey) => {
+                if (mobileRoundFocus !== 'all' && roundKey !== mobileRoundFocus) return null;
                 const roundMatches = bracket[roundKey] || [];
                 if (!roundMatches.length) return null;
                 const isExpanded = expandedRounds.has(roundKey);
                 const completion = getRoundCompletion(roundKey);
+                const progress = getRoundProgressCounts(roundKey);
                 const visibleMatches = isExpanded ? roundMatches : roundMatches.slice(0, 6);
                 const isCollapsed = roundMatches.length > 6 && !isExpanded;
 
@@ -740,7 +902,7 @@ export default function BracketView({
                   <div id={`mobile-round-${roundKey}`} key={`compact-${roundKey}`} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
                     <div className="mb-2 flex items-center justify-between border-b border-[#E2E8F0] pb-2 dark:border-[#1F2937]">
                       <p className="font-display text-lg text-[#2563EB] dark:text-[#FBBF24]">{ROUND_LABELS[roundKey]}</p>
-                      <span className="text-[11px] text-[#475569] dark:text-[#9CA3AF]">{completion}%</span>
+                      <span className="text-[11px] text-[#475569] dark:text-[#9CA3AF]">{completion}% ({progress.completed}/{progress.total})</span>
                     </div>
 
                     <div className="space-y-3">
@@ -749,6 +911,7 @@ export default function BracketView({
                         const teamB = match.teamB ? teamMap[match.teamB] : null;
                         const winnerA = match.winner && teamA && match.winner === teamA.id;
                         const winnerB = match.winner && teamB && match.winner === teamB.id;
+                        const isComplete = Boolean(match.winner);
 
                         return (
                           <button
@@ -759,6 +922,17 @@ export default function BracketView({
                             onTouchEnd={(e) => handleMobileTouchEnd(e, roundKey, index, match)}
                             onTouchCancel={clearMobilePressTimer}
                           >
+                            <div className="mb-2 flex justify-end">
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                                  isComplete
+                                    ? 'border-[#059669]/30 bg-[#ECFDF5] text-[#059669] dark:border-[#10B981]/40 dark:bg-[#103225] dark:text-[#34D399]'
+                                    : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#64748B] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#94A3B8]'
+                                }`}
+                              >
+                                {isComplete ? 'Completo' : 'Pendiente'}
+                              </span>
+                            </div>
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
                                 <div className="flex min-w-0 items-center gap-2">
@@ -837,7 +1011,7 @@ export default function BracketView({
                   <select
                     className="mt-3 min-h-[44px] w-full rounded-xl border border-[#E2E8F0] bg-white px-3 text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
                     value={mobileSheetMatch.winner || ''}
-                    onChange={(e) => onPickWinner(mobileSheetRoundKey, mobileSheetMatchIndex, e.target.value)}
+                    onChange={(e) => handleWinnerSelection(mobileSheetRoundKey, mobileSheetMatchIndex, e.target.value)}
                   >
                     <option value="">Seleccionar ganador</option>
                     <option value={mobileSheetMatch.teamA}>{teamMap[mobileSheetMatch.teamA]?.name}</option>
@@ -852,7 +1026,7 @@ export default function BracketView({
                       if (!mobileSheetMatch.teamA || !mobileSheetMatch.teamB || mobileSheetMatch.winner) return;
                       const candidates = [mobileSheetMatch.teamA, mobileSheetMatch.teamB];
                       const winnerId = candidates[Math.floor(Math.random() * candidates.length)];
-                      onPickWinner(mobileSheetRoundKey, mobileSheetMatchIndex, winnerId);
+                      handleWinnerSelection(mobileSheetRoundKey, mobileSheetMatchIndex, winnerId);
                     }}
                   >
                     Simular
@@ -960,7 +1134,9 @@ export default function BracketView({
                         }}
                       >
                         <div className="mx-auto w-full max-w-[210px] md:max-w-[245px]">
-                          <p className="mb-1 font-display text-sm font-semibold text-[#475569] md:text-base dark:text-[#9CA3AF]">{ROUND_LABELS[roundKey]}</p>
+                          <p className="mb-1 font-display text-sm font-semibold text-[#475569] md:text-base dark:text-[#9CA3AF]">
+                            {ROUND_LABELS[roundKey]} ({getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total})
+                          </p>
                           <MatchCard
                             match={match}
                             teamMap={teamMap}
@@ -969,7 +1145,7 @@ export default function BracketView({
                             roundKey={roundKey}
                             index={sourceIndex}
                             disabled={false}
-                            onPickWinner={onPickWinner}
+                            onPickWinner={handleWinnerSelection}
                             onSetMatchTeam={onSetMatchTeam}
                             active={selectedMatchId === match.id}
                             onActivate={() => activateMatch(match, roundKey, sourceIndex)}
@@ -990,7 +1166,9 @@ export default function BracketView({
                         }}
                       >
                         <div className="mx-auto w-full max-w-[210px] md:max-w-[245px]">
-                          <p className="mb-1 text-right font-display text-sm font-semibold text-[#475569] md:text-base dark:text-[#9CA3AF]">{ROUND_LABELS[roundKey]}</p>
+                          <p className="mb-1 text-right font-display text-sm font-semibold text-[#475569] md:text-base dark:text-[#9CA3AF]">
+                            {ROUND_LABELS[roundKey]} ({getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total})
+                          </p>
                           <MatchCard
                             match={match}
                             teamMap={teamMap}
@@ -999,7 +1177,7 @@ export default function BracketView({
                             roundKey={roundKey}
                             index={sourceIndex}
                             disabled={false}
-                            onPickWinner={onPickWinner}
+                            onPickWinner={handleWinnerSelection}
                             onSetMatchTeam={onSetMatchTeam}
                             active={selectedMatchId === match.id}
                             onActivate={() => activateMatch(match, roundKey, sourceIndex)}
@@ -1029,7 +1207,7 @@ export default function BracketView({
                           roundKey="final"
                           index={index}
                           disabled={false}
-                          onPickWinner={onPickWinner}
+                          onPickWinner={handleWinnerSelection}
                           onSetMatchTeam={onSetMatchTeam}
                           active={selectedMatchId === match.id}
                           onActivate={() => activateMatch(match, 'final', index)}
@@ -1052,7 +1230,7 @@ export default function BracketView({
                           roundKey="third"
                           index={index}
                           disabled={false}
-                          onPickWinner={onPickWinner}
+                          onPickWinner={handleWinnerSelection}
                           onSetMatchTeam={onSetMatchTeam}
                           active={selectedMatchId === match.id}
                           onActivate={() => activateMatch(match, 'third', index)}

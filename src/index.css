@@ -206,6 +206,39 @@ body {
   display: block;
 }
 
+.a11y-mode {
+  font-size: 1.04rem;
+}
+
+.a11y-mode table,
+.a11y-mode .rounded-2xl,
+.a11y-mode .rounded-3xl {
+  font-size: 1.02em;
+}
+
+.a11y-mode .text-xs {
+  font-size: 0.78rem;
+}
+
+.a11y-mode .text-sm {
+  font-size: 0.95rem;
+}
+
+.a11y-mode .text-lg,
+.a11y-mode .text-xl,
+.a11y-mode .text-2xl,
+.a11y-mode .text-3xl {
+  letter-spacing: 0.01em;
+}
+
+.a11y-mode th,
+.a11y-mode td,
+.a11y-mode button,
+.a11y-mode select,
+.a11y-mode input {
+  font-weight: 600;
+}
+
 .bracket-connector {
   stroke: var(--line);
   stroke-width: 2;

@@ -83,17 +83,22 @@ export default function GroupStage({
                 <thead>
                   <tr className="border-b border-[#D8E2F0] bg-[#F4F7FC] text-[#0F172A] dark:border-[#25324A] dark:bg-[#1A2740] dark:text-[#FFFFFF]">
                     <th className="pb-1 text-left">Equipo</th>
-                    <th>PJ</th>
-                    <th>PTS</th>
-                    <th>DG</th>
-                    <th>GF</th>
-                    <th>GC</th>
+                    <th title="Partidos jugados" className="cursor-help">PJ</th>
+                    <th title="Puntos" className="cursor-help">PTS</th>
+                    <th title="Diferencia de gol" className="cursor-help">DG</th>
+                    <th title="Goles a favor" className="cursor-help">GF</th>
+                    <th title="Goles en contra" className="cursor-help">GC</th>
                   </tr>
                 </thead>
                 <tbody>
                   {standings.map((row, idx) => {
                     const team = teamMap[row.teamId];
                     const adv = idx < 2 || bestThirdIds.has(row.teamId);
+                    const samePointsRows = standings.filter((entry) => entry.points === row.points);
+                    const tieBreakByGd = samePointsRows.length > 1 && new Set(samePointsRows.map((entry) => entry.gd)).size > 1;
+                    const tieBreakByGf =
+                      samePointsRows.length > 1 && !tieBreakByGd && new Set(samePointsRows.map((entry) => entry.gf)).size > 1;
+                    const tieBreakLabel = tieBreakByGd ? 'DG' : tieBreakByGf ? 'GF' : null;
                     const placementForGroup = manualGroupPlacements?.[group.id] || {};
                     const assignedPlace = Number(
                       Object.entries(placementForGroup).find(([, teamId]) => teamId === row.teamId)?.[0] || 0
@@ -135,7 +140,16 @@ export default function GroupStage({
                           </div>
                         </td>
                         <td className="text-center">{row.played}</td>
-                        <td className="text-center">{row.points}</td>
+                        <td className="text-center">
+                          <span className="inline-flex items-center gap-1">
+                            <span>{row.points}</span>
+                            {tieBreakLabel && (
+                              <span className="rounded border border-[#D8E2F0] bg-[#F8FAFC] px-1 py-0.5 text-[9px] leading-none text-[#475569] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#9CA3AF]">
+                                {tieBreakLabel}
+                              </span>
+                            )}
+                          </span>
+                        </td>
                         <td className="text-center">{row.gd}</td>
                         <td className="text-center">{row.gf}</td>
                         <td className="text-center">{row.ga}</td>
