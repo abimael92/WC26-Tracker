@@ -4,9 +4,8 @@ import html2canvas from 'html2canvas';
 import BracketView from './components/BracketView';
 import ChampionOverlay from './components/ChampionOverlay';
 import GroupStage from './components/GroupStage';
+import { getGroupMatchScheduleById } from './lib/schedule';
 import { useTournamentStore } from './store/useTournamentStore';
-
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const createTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -27,18 +26,18 @@ export default function App() {
   const {
     teamMap,
     groupMatches,
+    manualGroupPlacements,
     outcomes,
     bracket,
     stageLocked,
-    theme,
-    setTheme,
     updateGroupMatch,
+    toggleGroupPlacement,
+    clearGroupPlacement,
+    clearAllGroupPlacements,
     autoSimulateGroups,
-    lockGroupsAndStartKnockout,
     setMatchTeam,
     setWinner,
     resetMatch,
-    autoSimulateRound,
     resetAll,
   } = useTournamentStore();
 
@@ -51,12 +50,63 @@ export default function App() {
     [groupMatches]
   );
 
-  const liveMatch = useMemo(() => {
-    if (!flattenedMatches.length) return null;
-    return [...flattenedMatches].sort((a, b) => b.homeGoals + b.awayGoals - (a.homeGoals + a.awayGoals))[0];
+  const upcomingMatches = useMemo(() => {
+    const now = new Date();
+    const scheduledMatches = flattenedMatches.map((match) => {
+      const scheduleEntry = getGroupMatchScheduleById(match.id);
+      return {
+        ...match,
+        scheduleEntry,
+        kickoffAt: scheduleEntry ? new Date(scheduleEntry.kickoffUtc) : null,
+      };
+    });
+
+    const datedMatches = scheduledMatches
+      .filter((match) => match.kickoffAt instanceof Date && !Number.isNaN(match.kickoffAt.getTime()))
+      .sort((a, b) => a.kickoffAt.getTime() - b.kickoffAt.getTime());
+
+    const futureMatches = datedMatches.filter((match) => match.kickoffAt >= now);
+    if (futureMatches.length) return futureMatches.slice(0, 4);
+
+    const latestPastMatches = [...datedMatches]
+      .filter((match) => match.kickoffAt < now)
+      .sort((a, b) => b.kickoffAt.getTime() - a.kickoffAt.getTime())
+      .slice(0, 4)
+      .reverse();
+
+    if (latestPastMatches.length) return latestPastMatches;
+
+    return flattenedMatches.slice(0, 4).map((match) => ({
+      ...match,
+      scheduleEntry: null,
+      kickoffAt: null,
+    }));
   }, [flattenedMatches]);
 
-  const upcomingMatches = useMemo(() => flattenedMatches.slice(0, 4), [flattenedMatches]);
+  const formatUpcomingKickoff = (kickoffAt) => {
+    if (!kickoffAt) return 'Por definir';
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDay = new Date(kickoffAt.getFullYear(), kickoffAt.getMonth(), kickoffAt.getDate());
+    const diffDays = Math.round((targetDay - today) / (24 * 60 * 60 * 1000));
+
+    const timeText = new Intl.DateTimeFormat('es-MX', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(kickoffAt);
+
+    if (diffDays === 0) return `Hoy · ${timeText}`;
+    if (diffDays === 1) return `Mañana · ${timeText}`;
+
+    const dateText = new Intl.DateTimeFormat('es-MX', {
+      day: 'numeric',
+      month: 'short',
+    }).format(kickoffAt);
+
+    return `${dateText} · ${timeText}`;
+  };
 
   const standingsLeaders = useMemo(
     () =>
@@ -79,19 +129,6 @@ export default function App() {
     }
   };
 
-  const simulateEntire = async () => {
-    autoSimulateGroups();
-    lockGroupsAndStartKnockout();
-    await delay(340);
-    const rounds = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
-    for (const round of rounds) {
-      autoSimulateRound(round);
-      await delay(360);
-    }
-    setShowChampion(true);
-    setTimeout(() => setShowChampion(false), 3600);
-  };
-
   const exportBracketImage = async () => {
     const node = document.getElementById('capture-root');
     if (!node) return;
@@ -102,7 +139,7 @@ export default function App() {
     link.click();
   };
 
-  const rootTheme = theme === 'dark' ? 'theme-dark dark' : 'theme-light light-mode';
+  const rootTheme = 'theme-dark dark';
 
   return (
     <div className={`${rootTheme} min-h-screen bg-app text-[#0F172A] dark:text-[#FFFFFF]`}>
@@ -129,39 +166,9 @@ export default function App() {
               >
                 Simular grupos automáticamente
               </button>
-              <button
-                onClick={lockGroupsAndStartKnockout}
-                className="rounded-full border border-[#059669] bg-white px-3 py-2 font-semibold text-[#065F46] hover:bg-[#ECFDF5] dark:border-[#10B981] dark:bg-[#121A2B] dark:text-[#10B981] dark:hover:bg-[#1A2740]"
-              >
-                Bloquear grupos
-              </button>
-              <button
-                onClick={simulateEntire}
-                className="rounded-full border border-[#FBBF24] bg-[var(--gradient-gold)] px-3 py-2 font-semibold text-[#FFFFFF] hover:brightness-105 dark:border-[#FBBF24]"
-              >
-                Simular torneo completo
-              </button>
               <button onClick={resetAll} className="rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]">
                 Reiniciar
               </button>
-              <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                aria-label="Cambiar tema"
-                className={`relative h-[24px] w-[44px] rounded-full border transition-all duration-200 ease-in-out ${
-                  theme === 'dark' ? 'border-[#2C2C34] bg-[#18181B]' : 'border-[#CBD5E1] bg-[#E2E8F0]'
-                }`}
-              >
-                <span
-                  className={`absolute top-[1px] h-[20px] w-[20px] rounded-full bg-[#FFFFFF] text-[11px] leading-[20px] text-center transition-all duration-200 ease-in-out ${
-                    theme === 'dark' ? 'left-[1px] text-[#0B0F1C]' : 'left-[21px] text-[var(--warning-text-aa)]'
-                  }`}
-                >
-                  {theme === 'dark' ? '🌙' : '☀️'}
-                </span>
-              </button>
-              <span className="rounded-full border border-[#CBD5E1] bg-white/80 px-3 py-1 text-[11px] font-semibold text-[#334155] dark:border-[#2C2C34] dark:bg-[#18181B] dark:text-[#D4D4D8]">
-                {theme === 'dark' ? 'Night Fixture' : 'Day Match'}
-              </span>
               <button
                 onClick={exportBracketImage}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
@@ -172,68 +179,32 @@ export default function App() {
           </div>
         </motion.header>
 
-        <section className="grid gap-4 lg:grid-cols-3">
+        <section className="grid gap-4 lg:grid-cols-1">
           <article className="rounded-3xl border border-[#CBD5E1] bg-white p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[#18181B]">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Live Score</p>
-            {liveMatch ? (
-              <>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-team-pop text-lg">{teamMap[liveMatch.home]?.name}</p>
-                  <p className="text-live-score text-4xl leading-none">
-                    {liveMatch.homeGoals} - {liveMatch.awayGoals}
-                  </p>
-                  <p className="text-team-pop text-lg text-right">{teamMap[liveMatch.away]?.name}</p>
-                </div>
-                <div className="mt-3 flex items-center justify-between text-sm">
-                  <span className="rounded-full bg-[#EF4444]/10 px-2 py-1 font-semibold text-[var(--danger-text-aa)]">🟥 0</span>
-                  <span className="text-match-timer">{stageLocked ? "90'+" : "72'"} · Grupo {liveMatch.groupId}</span>
-                  <span className="rounded-full bg-[#EAB308]/10 px-2 py-1 font-semibold text-[var(--yellow-text-aa)]">🟨 2</span>
-                </div>
-              </>
-            ) : (
-              <p className="mt-3 text-sm text-[#64748B] dark:text-[#A1A1AA]">No hay partidos disponibles.</p>
-            )}
-          </article>
-
-          <article className="rounded-3xl border border-[#CBD5E1] bg-white p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[#18181B]">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Upcoming Matches</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Próximos partidos</p>
             <div className="mt-3 space-y-3">
               {upcomingMatches.map((match) => (
                 <div key={`upcoming-${match.id}`} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 dark:border-[#2C2C34] dark:bg-[#111117]">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-[#334155] dark:text-[#D4D4D8]">Grupo {match.groupId}</span>
-                    <span className="text-match-timer">Kickoff +{match.id.split('-')[1]}0m</span>
+                    <span className="font-semibold text-[#2563EB] dark:text-[#8FB4FF]">{formatUpcomingKickoff(match.kickoffAt)}</span>
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-3 text-sm">
-                    <span className="text-team-pop">{teamMap[match.home]?.name}</span>
-                    <span className="font-black text-[#0F172A] dark:text-[#FAFAFA]">vs</span>
-                    <span className="text-team-pop text-right">{teamMap[match.away]?.name}</span>
+                    <span className="flex items-center gap-2 font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
+                      <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.home]?.code}.png`} alt={teamMap[match.home]?.name} loading="lazy" />
+                      {teamMap[match.home]?.name}
+                    </span>
+                    <span className="font-black text-[#334155] dark:text-[#D4D4D8]">vs</span>
+                    <span className="flex items-center justify-end gap-2 text-right font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
+                      {teamMap[match.away]?.name}
+                      <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.away]?.code}.png`} alt={teamMap[match.away]?.name} loading="lazy" />
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
           </article>
 
-          <article className="rounded-3xl border border-[#CBD5E1] bg-white p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[#18181B]">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Team Standings</p>
-            <div className="mt-3 space-y-2">
-              {standingsLeaders.map((row, idx) => {
-                const team = teamMap[row.teamId];
-                return (
-                  <div key={`leader-${row.teamId}`} className="flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 dark:border-[#2C2C34] dark:bg-[#111117]">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 text-xs font-bold text-[#64748B] dark:text-[#A1A1AA]">#{idx + 1}</span>
-                      <span className="text-team-pop text-sm">{team?.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs">
-                      <span className="text-live-score">{row.points} pts</span>
-                      <span className="font-bold text-[var(--warning-text-aa)]">GD {row.gd}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </article>
         </section>
 
         <section className="space-y-4">
@@ -256,7 +227,7 @@ export default function App() {
                   : 'border-[#CBD5E1] bg-[#FFFFFF] text-[#1F2937] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
               }`}
             >
-              Cuadro eliminatorio
+              Fase eliminatoria
             </button>
           </div>
 
@@ -268,6 +239,10 @@ export default function App() {
                 outcomes={outcomes}
                 stageLocked={stageLocked}
                 onScoreChange={updateGroupMatch}
+                manualGroupPlacements={manualGroupPlacements}
+                onToggleGroupPlacement={toggleGroupPlacement}
+                onClearGroupPlacement={clearGroupPlacement}
+                onClearAllGroupPlacements={clearAllGroupPlacements}
                 selectedTeamId={selectedStandingTeamId}
                 onSelectTeam={setSelectedStandingTeamId}
               />

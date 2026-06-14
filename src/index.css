@@ -19,8 +19,8 @@
   --danger: #ef4444;
   --yellow-card: #eab308;
   --border: #2c2c34;
-  --line: #3f3f46;
-  --line-winner: #10b981;
+  --line: #38527a;
+  --line-winner: #f6c453;
   --shadow: rgba(0, 0, 0, 0.5);
   --gradient-header: linear-gradient(135deg, #09090b 0%, #111117 54%, #18181b 100%);
   --gradient-gold: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
@@ -62,8 +62,8 @@ body {
   --danger: #ef4444;
   --yellow-card: #eab308;
   --border: #2c2c34;
-  --line: #3f3f46;
-  --line-winner: #10b981;
+  --line: #38527a;
+  --line-winner: #f6c453;
   --shadow: rgba(0, 0, 0, 0.5);
   --gradient-header: linear-gradient(135deg, #09090b 0%, #111117 54%, #18181b 100%);
   --gradient-gold: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
@@ -80,6 +80,7 @@ body {
   --text-main: var(--text-primary);
 }
 
+/*
 .theme-light,
 .light-mode {
   color-scheme: light;
@@ -114,6 +115,7 @@ body {
   --bg-3: var(--bg-surface);
   --text-main: var(--text-primary);
 }
+*/
 
 .bg-app {
   background: radial-gradient(circle at 10% 10%, color-mix(in srgb, var(--accent-primary) 24%, transparent), transparent 32%),

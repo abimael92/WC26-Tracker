@@ -31,8 +31,8 @@ export const initialGroupMatches = () => {
       id: `${group.id}-${index + 1}`,
       home: fixture[0],
       away: fixture[1],
-      homeGoals: 0,
-      awayGoals: 0,
+      homeGoals: '',
+      awayGoals: '',
     }));
   });
   return byGroup;
@@ -58,11 +58,19 @@ export const calculateGroupStandings = (groupId, groupMatches, teamMap) => {
     rows[team.id] = emptyRow(teamMap[team.id]);
   });
 
+  const toGoalValue = (value) => {
+    if (value === '' || value === null || value === undefined) return null;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
   groupMatches.forEach((match) => {
     const home = rows[match.home];
     const away = rows[match.away];
-    const hg = Number(match.homeGoals) || 0;
-    const ag = Number(match.awayGoals) || 0;
+    const hg = toGoalValue(match.homeGoals);
+    const ag = toGoalValue(match.awayGoals);
+
+    if (hg === null || ag === null) return;
 
     home.played += 1;
     away.played += 1;

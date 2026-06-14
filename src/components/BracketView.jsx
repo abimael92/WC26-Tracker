@@ -74,32 +74,30 @@ const formatSeedSlot = (slotText) => {
 const getSlotCandidateIds = (slotText, outcomes) => {
   if (!slotText || !outcomes) return [];
 
+  const getTeamsFromGroups = (groups) =>
+    groups.flatMap((group) => (outcomes.standingsByGroup?.[group] || []).map((row) => row.teamId));
+
+  const unique = (teamIds) => [...new Set(teamIds)];
+
   const winnerMatch = slotText.match(/ganador del Grupo\s+([A-L])/i);
   if (winnerMatch) {
-    const teamId = outcomes.winners?.[winnerMatch[1]];
-    return teamId ? [teamId] : [];
+    return unique(getTeamsFromGroups([winnerMatch[1]]));
   }
 
   const bestThirdMatch = slotText.match(/mejor 3\.er lugar de los Grupos\s+([A-L/]+)/i);
   if (bestThirdMatch) {
     const groups = bestThirdMatch[1].split('/');
-    return outcomes.bestThirds
-      .filter((entry) => groups.includes(entry.group))
-      .map((entry) => entry.teamId);
+    return unique(getTeamsFromGroups(groups));
   }
 
   const runnerGroupsMatch = slotText.match(/sublíder de los Grupos\s+([A-L/]+)/i);
   if (runnerGroupsMatch) {
-    return runnerGroupsMatch[1]
-      .split('/')
-      .map((group) => outcomes.runners?.[group])
-      .filter(Boolean);
+    return unique(getTeamsFromGroups(runnerGroupsMatch[1].split('/')));
   }
 
   const runnerGroupMatch = slotText.match(/sublíder del Grupo\s+([A-L])/i);
   if (runnerGroupMatch) {
-    const teamId = outcomes.runners?.[runnerGroupMatch[1]];
-    return teamId ? [teamId] : [];
+    return unique(getTeamsFromGroups([runnerGroupMatch[1]]));
   }
 
   return [];
@@ -140,7 +138,7 @@ function buildTeamGuidance(team, outcomes, mode) {
 function BracketHelpBody({ mode }) {
   return (
     <div className="space-y-3 text-xs leading-relaxed text-[#0F172A] dark:text-[#FFFFFF] sm:text-sm">
-      <p className="font-semibold text-[#2563EB] dark:text-[#3B82F6]">Cómo funciona el cuadro eliminatorio:</p>
+      <p className="font-semibold text-[#2563EB] dark:text-[#3B82F6]">Cómo funciona la fase eliminatoria:</p>
       {mode === 'simple' ? (
         <>
           <p>
@@ -190,6 +188,7 @@ function MatchCard({
   active,
   onActivate,
   scheduleText,
+  roundMatches,
 }) {
   const teamA = match.teamA ? teamMap[match.teamA] : null;
   const teamB = match.teamB ? teamMap[match.teamB] : null;
@@ -197,12 +196,20 @@ function MatchCard({
   const allTeams = Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const candidateIdsA = showSeedTemplate ? getSlotCandidateIds(match.slotA, outcomes) : [];
   const candidateIdsB = showSeedTemplate ? getSlotCandidateIds(match.slotB, outcomes) : [];
-  const optionTeamsA = (candidateIdsA.length ? candidateIdsA.map((id) => teamMap[id]).filter(Boolean) : allTeams).sort((a, b) =>
-    a.name.localeCompare(b.name, 'es')
-  );
-  const optionTeamsB = (candidateIdsB.length ? candidateIdsB.map((id) => teamMap[id]).filter(Boolean) : allTeams).sort((a, b) =>
-    a.name.localeCompare(b.name, 'es')
-  );
+  const selectedIdsInRound = showSeedTemplate
+    ? new Set((roundMatches || []).flatMap((item) => [item.teamA, item.teamB]).filter(Boolean))
+    : new Set();
+  const blockedForA = new Set(selectedIdsInRound);
+  blockedForA.delete(match.teamA);
+  const blockedForB = new Set(selectedIdsInRound);
+  blockedForB.delete(match.teamB);
+
+  const optionTeamsA = (candidateIdsA.length ? candidateIdsA.map((id) => teamMap[id]).filter(Boolean) : allTeams)
+    .filter((team) => !blockedForA.has(team.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const optionTeamsB = (candidateIdsB.length ? candidateIdsB.map((id) => teamMap[id]).filter(Boolean) : allTeams)
+    .filter((team) => !blockedForB.has(team.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
   return (
     <>
@@ -210,8 +217,8 @@ function MatchCard({
         layout
         className={`relative rounded-xl border p-3 transition-all ${
           active
-            ? 'border-l-4 border-l-[#D97706] border-[#D97706] bg-[#F1F5F9] shadow-[0_4px_12px_rgba(15,23,42,0.08)] dark:border-l-[#FBBF24] dark:border-[#FBBF24] dark:bg-[#1A2235] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3)]'
-            : 'border-l-4 border-l-[#2563EB] border-[#E2E8F0] bg-white shadow-[0_2px_6px_rgba(15,23,42,0.08)] hover:scale-[1.02] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08)] dark:border-l-[#3B82F6] dark:border-[#1F2937] dark:bg-[#141B2B] dark:shadow-[0_2px_6px_rgba(0,0,0,0.3)]'
+            ? 'border-l-4 border-l-[#D97706] border-[#D97706] bg-[#F1F5F9] shadow-[0_4px_12px_rgba(15,23,42,0.08)] dark:border-l-[#F6C453] dark:border-[#F6C453] dark:bg-[#13243A] dark:shadow-[0_4px_12px_rgba(2,6,23,0.45)]'
+            : 'border-l-4 border-l-[#2563EB] border-[#E2E8F0] bg-white shadow-[0_2px_6px_rgba(15,23,42,0.08)] hover:scale-[1.02] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08)] dark:border-l-[#38BDF8] dark:border-[#22324D] dark:bg-[#0F1A2E] dark:shadow-[0_2px_6px_rgba(2,6,23,0.4)]'
         }`}
         transition={{ duration: 0.2 }}
         onClick={onActivate}
@@ -292,7 +299,7 @@ export default function BracketView({
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showQuickGuide, setShowQuickGuide] = useState(false);
   const [showScheduleView, setShowScheduleView] = useState(false);
-  const [guideMode, setGuideMode] = useState('simple');
+  const [guideMode] = useState('simple');
   const [activeBracketTab, setActiveBracketTab] = useState('partidos');
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? isMobileViewport() : false));
   const [mobileViewMode, setMobileViewMode] = useState(() => (typeof window !== 'undefined' && isMobileViewport() ? 'list' : 'bracket'));
@@ -524,13 +531,7 @@ export default function BracketView({
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-display text-3xl tracking-wide text-[#2563EB] dark:text-[#F6C453]">Cuadro Eliminatorio</h2>
-        <button
-          onClick={() => setGuideMode((current) => (current === 'simple' ? 'detailed' : 'simple'))}
-          className="rounded-full border border-[#2563EB] bg-white px-3 py-1 text-xs font-semibold text-[#1D4ED8] hover:bg-[#DBEAFE] dark:border-[#F6C453]/40 dark:bg-[#1A2740] dark:text-[#F6C453] dark:hover:bg-[#121A2B]"
-        >
-          {guideMode === 'simple' ? 'Modo simple' : 'Modo detallado'}
-        </button>
+        <h2 className="font-display text-3xl tracking-wide text-[#2563EB] dark:text-[#F6C453]">Fase Eliminatoria</h2>
         <button
           onClick={() => setShowHelpModal(true)}
           className="rounded-full border border-[#2563EB] bg-white px-3 py-1 text-xs font-semibold text-[#1D4ED8] hover:bg-[#DBEAFE] dark:border-[#3B82F6]/40 dark:bg-[#1A2740] dark:text-[#FFFFFF] dark:hover:bg-[#121A2B]"
@@ -561,16 +562,6 @@ export default function BracketView({
           }`}
         >
           Partidos
-        </button>
-        <button
-          onClick={() => setActiveBracketTab('cruces')}
-          className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-            activeBracketTab === 'cruces'
-              ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
-              : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
-          }`}
-        >
-          Cómo funcionan los cruces
         </button>
       </div>
 
@@ -744,7 +735,7 @@ export default function BracketView({
 
                               <div className="flex items-center justify-between text-[12px] text-[#475569] dark:text-[#9CA3AF]">
                                 <span>{getScheduleText(roundKey, index) || 'Sin horario'}</span>
-                                <span>Winner advances →</span>
+                                <span>Avanza el ganador →</span>
                               </div>
                             </div>
                           </button>
@@ -821,13 +812,13 @@ export default function BracketView({
                       onPickWinner(mobileSheetRoundKey, mobileSheetMatchIndex, winnerId);
                     }}
                   >
-                    Auto-play
+                    Simular
                   </button>
                   <button
                     className="min-h-[44px] rounded-xl border border-[#E2E8F0] bg-[#F1F5F9] text-sm text-[#475569] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#9CA3AF]"
                     onClick={() => onResetMatch?.(mobileSheetRoundKey, mobileSheetMatchIndex)}
                   >
-                    Resetear
+                    Reiniciar
                   </button>
                 </div>
 
@@ -842,7 +833,7 @@ export default function BracketView({
           )}
 
           {(!isMobile || mobileViewMode === 'bracket') && (
-            <div className="rounded-2xl border border-[#E2E8F0] bg-[#F1F5F9] p-4 dark:border-[#1F2937] dark:bg-[#141B2B]">
+            <div className="rounded-2xl border border-[#E2E8F0] bg-[#F1F5F9] p-4 dark:border-[#22324D] dark:bg-[#0B1730]">
             <div ref={bracketScrollRef} className="bracket-mobile-scroll relative overflow-x-auto pb-4">
               <div className="min-w-[980px] md:min-w-[1250px]">
                 <svg
@@ -852,8 +843,8 @@ export default function BracketView({
                 >
                   <defs>
                     <linearGradient id="lineGrad" x1="0" x2="1">
-                      <stop offset="0%" stopColor="#3B82F6" />
-                      <stop offset="100%" stopColor="#FBBF24" />
+                      <stop offset="0%" stopColor="#38BDF8" />
+                      <stop offset="100%" stopColor="#F6C453" />
                     </linearGradient>
                   </defs>
 
@@ -873,7 +864,7 @@ export default function BracketView({
                   <motion.path
                     d={`M ${finalLeftX} ${leftSfY} H ${centerJoinLeftX} V ${centerJoinY} H ${centerX}`}
                     className="bracket-connector-main"
-                    stroke="#FBBF24"
+                    stroke="#F6C453"
                     fill="none"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
@@ -882,7 +873,7 @@ export default function BracketView({
                   <motion.path
                     d={`M ${finalRightX} ${rightSfY} H ${centerJoinRightX} V ${centerJoinY} H ${centerX}`}
                     className="bracket-connector-main"
-                    stroke="#FBBF24"
+                    stroke="#F6C453"
                     fill="none"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
@@ -891,7 +882,7 @@ export default function BracketView({
                   <motion.path
                     d={`M ${centerX} ${centerJoinY} V ${finalY - 2.8}`}
                     className="bracket-connector-main"
-                    stroke="#FBBF24"
+                    stroke="#F6C453"
                     fill="none"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
@@ -900,7 +891,7 @@ export default function BracketView({
                   <motion.path
                     d={`M ${centerX} ${finalY + 2.8} V ${thirdY - 2.8}`}
                     className="bracket-connector-sub"
-                    stroke="#FBBF24"
+                    stroke="#CDA24A"
                     fill="none"
                     opacity="0.7"
                     initial={{ pathLength: 0 }}
@@ -931,9 +922,10 @@ export default function BracketView({
                             match={match}
                             teamMap={teamMap}
                             outcomes={outcomes}
+                            roundMatches={bracket[roundKey]}
                             roundKey={roundKey}
                             index={sourceIndex}
-                            disabled={!stageLocked && roundKey !== 'r32'}
+                            disabled={false}
                             onPickWinner={onPickWinner}
                             onSetMatchTeam={onSetMatchTeam}
                             active={selectedMatchId === match.id}
@@ -960,9 +952,10 @@ export default function BracketView({
                             match={match}
                             teamMap={teamMap}
                             outcomes={outcomes}
+                            roundMatches={bracket[roundKey]}
                             roundKey={roundKey}
                             index={sourceIndex}
-                            disabled={!stageLocked && roundKey !== 'r32'}
+                            disabled={false}
                             onPickWinner={onPickWinner}
                             onSetMatchTeam={onSetMatchTeam}
                             active={selectedMatchId === match.id}
@@ -989,6 +982,7 @@ export default function BracketView({
                           match={match}
                           teamMap={teamMap}
                           outcomes={outcomes}
+                          roundMatches={bracket.final}
                           roundKey="final"
                           index={index}
                           disabled={false}
@@ -1011,6 +1005,7 @@ export default function BracketView({
                           match={match}
                           teamMap={teamMap}
                           outcomes={outcomes}
+                          roundMatches={bracket.third}
                           roundKey="third"
                           index={index}
                           disabled={false}
