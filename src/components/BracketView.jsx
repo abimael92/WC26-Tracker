@@ -731,7 +731,7 @@ export default function BracketView({
                                   {teamA ? <img src={`https://flagcdn.com/w40/${teamA.code}.png`} alt={teamA.name} className="h-5 w-5 rounded-full" /> : <span className="h-5 w-5 rounded-full bg-[#F1F5F9] dark:bg-[#1A2235]" />}
                                   <p className={`truncate text-base ${winnerA ? 'font-semibold text-[#0F172A] dark:text-[#FFFFFF]' : 'text-[#0F172A] dark:text-[#FFFFFF]'}`}>{teamA?.name || 'Por definir'}</p>
                                 </div>
-                                <span className={`text-xl font-bold ${winnerA ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[#94A3B8] dark:text-[#6B7280]'}`}>{winnerA ? '1' : '-'}</span>
+                                <span className={`text-xl font-bold ${winnerA ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[var(--muted-text-aa)] dark:text-[#6B7280]'}`}>{winnerA ? '1' : '-'}</span>
                               </div>
 
                               <div className="flex items-center justify-between">
@@ -739,7 +739,7 @@ export default function BracketView({
                                   {teamB ? <img src={`https://flagcdn.com/w40/${teamB.code}.png`} alt={teamB.name} className="h-5 w-5 rounded-full" /> : <span className="h-5 w-5 rounded-full bg-[#F1F5F9] dark:bg-[#1A2235]" />}
                                   <p className={`truncate text-base ${winnerB ? 'font-semibold text-[#0F172A] dark:text-[#FFFFFF]' : 'text-[#0F172A] dark:text-[#FFFFFF]'}`}>{teamB?.name || 'Por definir'}</p>
                                 </div>
-                                <span className={`text-xl font-bold ${winnerB ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[#94A3B8] dark:text-[#6B7280]'}`}>{winnerB ? '1' : '-'}</span>
+                                <span className={`text-xl font-bold ${winnerB ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[var(--muted-text-aa)] dark:text-[#6B7280]'}`}>{winnerB ? '1' : '-'}</span>
                               </div>
 
                               <div className="flex items-center justify-between text-[12px] text-[#475569] dark:text-[#9CA3AF]">

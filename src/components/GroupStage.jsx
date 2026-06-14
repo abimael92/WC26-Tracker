@@ -34,7 +34,7 @@ export default function GroupStage({
             >
               <header className="mb-3 flex items-center justify-between">
                 <h3 className="rounded-lg bg-[#2563EB] px-3 py-1 font-display text-xl text-white dark:bg-[#3B82F6]">Grupo {group.id}</h3>
-                <span className="text-xs text-[#7D8EA8] dark:text-[#7A879D]">Tabla en vivo</span>
+                <span className="text-xs text-[var(--muted-text-aa)] dark:text-[#7A879D]">Tabla en vivo</span>
               </header>
 
               <table className="mb-3 w-full text-xs">
@@ -67,7 +67,7 @@ export default function GroupStage({
                               className="h-4 w-4 rounded-full"
                             />
                             <span className="truncate">{team.name}</span>
-                            <span className="text-[10px] tracking-wide text-[#7D8EA8] dark:text-[#7A879D]">{team.fifaCode}</span>
+                            <span className="text-[10px] tracking-wide text-[var(--muted-text-aa)] dark:text-[#7A879D]">{team.fifaCode}</span>
                           </div>
                         </td>
                         <td className="text-center">{row.points}</td>

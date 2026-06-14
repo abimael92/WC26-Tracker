@@ -153,7 +153,7 @@ export default function App() {
               >
                 <span
                   className={`absolute top-[1px] h-[20px] w-[20px] rounded-full bg-[#FFFFFF] text-[11px] leading-[20px] text-center transition-all duration-200 ease-in-out ${
-                    theme === 'dark' ? 'left-[1px] text-[#0B0F1C]' : 'left-[21px] text-[#EA580C]'
+                    theme === 'dark' ? 'left-[1px] text-[#0B0F1C]' : 'left-[21px] text-[var(--warning-text-aa)]'
                   }`}
                 >
                   {theme === 'dark' ? '🌙' : '☀️'}
@@ -185,9 +185,9 @@ export default function App() {
                   <p className="text-team-pop text-lg text-right">{teamMap[liveMatch.away]?.name}</p>
                 </div>
                 <div className="mt-3 flex items-center justify-between text-sm">
-                  <span className="rounded-full bg-[#EF4444]/10 px-2 py-1 font-semibold text-[#EF4444]">🟥 0</span>
+                  <span className="rounded-full bg-[#EF4444]/10 px-2 py-1 font-semibold text-[var(--danger-text-aa)]">🟥 0</span>
                   <span className="text-match-timer">{stageLocked ? "90'+" : "72'"} · Grupo {liveMatch.groupId}</span>
-                  <span className="rounded-full bg-[#EAB308]/10 px-2 py-1 font-semibold text-[#EAB308]">🟨 2</span>
+                  <span className="rounded-full bg-[#EAB308]/10 px-2 py-1 font-semibold text-[var(--yellow-text-aa)]">🟨 2</span>
                 </div>
               </>
             ) : (
@@ -227,7 +227,7 @@ export default function App() {
                     </div>
                     <div className="flex items-center gap-3 text-xs">
                       <span className="text-live-score">{row.points} pts</span>
-                      <span className="font-bold text-[#EA580C] dark:text-[#06B6D4]">GD {row.gd}</span>
+                      <span className="font-bold text-[var(--warning-text-aa)]">GD {row.gd}</span>
                     </div>
                   </div>
                 );
