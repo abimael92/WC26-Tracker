@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 import { GROUPS } from '../data/teams';
 
+const isEmptyScore = (value) => value === '' || value === null || value === undefined;
+
 export default function GroupStage({
   teamMap,
   groupMatches,
@@ -69,6 +71,14 @@ export default function GroupStage({
                 </div>
               </header>
 
+              <div className="mb-2 rounded-md border border-[#D8E2F0] bg-[#F8FAFC] px-2 py-1 text-[10px] text-[#475569] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#9CA3AF]">
+                <p className="hidden sm:block">PJ: Partidos jugados · PTS: Puntos · GD: Diferencia de gol · GF: Goles a favor · GA: Goles en contra</p>
+                <details className="sm:hidden">
+                  <summary className="cursor-pointer">Ver siglas de tabla</summary>
+                  <p className="mt-1">PJ: Jugados · PTS: Puntos · GD: Dif. gol · GF: A favor · GA: En contra</p>
+                </details>
+              </div>
+
               <table className="mb-3 w-full text-xs">
                 <thead>
                   <tr className="border-b border-[#D8E2F0] bg-[#F4F7FC] text-[#0F172A] dark:border-[#25324A] dark:bg-[#1A2740] dark:text-[#FFFFFF]">
@@ -136,32 +146,39 @@ export default function GroupStage({
               </table>
 
               <div className="space-y-2">
-                {groupMatches[group.id].map((match) => (
-                  <div key={match.id} className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 text-xs">
-                    <span className="truncate text-[#0F172A] dark:text-[#FFFFFF]">{teamMap[match.home].name}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="9"
-                      placeholder="-"
-                      disabled={stageLocked}
-                      value={match.homeGoals}
-                      onChange={(e) => onScoreChange(group.id, match.id, 'homeGoals', e.target.value)}
-                      className="w-10 rounded-md border border-[#D8E2F0] bg-white p-1 text-center text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:focus:ring-[#3B82F6]/20"
-                    />
-                    <span className="truncate text-[#0F172A] dark:text-[#FFFFFF]">{teamMap[match.away].name}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="9"
-                      placeholder="-"
-                      disabled={stageLocked}
-                      value={match.awayGoals}
-                      onChange={(e) => onScoreChange(group.id, match.id, 'awayGoals', e.target.value)}
-                      className="w-10 rounded-md border border-[#D8E2F0] bg-white p-1 text-center text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:focus:ring-[#3B82F6]/20"
-                    />
-                  </div>
-                ))}
+                {groupMatches[group.id].map((match) => {
+                  const hasIncompleteScore = isEmptyScore(match.homeGoals) !== isEmptyScore(match.awayGoals);
+
+                  return (
+                    <div key={match.id}>
+                      <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 text-xs">
+                        <span className="truncate text-[#0F172A] dark:text-[#FFFFFF]">{teamMap[match.home].name}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="9"
+                          placeholder="-"
+                          disabled={stageLocked}
+                          value={match.homeGoals}
+                          onChange={(e) => onScoreChange(group.id, match.id, 'homeGoals', e.target.value)}
+                          className="w-10 rounded-md border border-[#D8E2F0] bg-white p-1 text-center text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:focus:ring-[#3B82F6]/20"
+                        />
+                        <span className="truncate text-[#0F172A] dark:text-[#FFFFFF]">{teamMap[match.away].name}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="9"
+                          placeholder="-"
+                          disabled={stageLocked}
+                          value={match.awayGoals}
+                          onChange={(e) => onScoreChange(group.id, match.id, 'awayGoals', e.target.value)}
+                          className="w-10 rounded-md border border-[#D8E2F0] bg-white p-1 text-center text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:focus:ring-[#3B82F6]/20"
+                        />
+                      </div>
+                      {hasIncompleteScore && <p className="mt-1 text-[10px] text-[#B45309] dark:text-[#F59E0B]">Falta marcador</p>}
+                    </div>
+                  );
+                })}
               </div>
             </motion.article>
           );

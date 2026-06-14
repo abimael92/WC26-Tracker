@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
 import BracketView from './components/BracketView';
@@ -6,6 +6,8 @@ import ChampionOverlay from './components/ChampionOverlay';
 import GroupStage from './components/GroupStage';
 import { getGroupMatchScheduleById } from './lib/schedule';
 import { useTournamentStore } from './store/useTournamentStore';
+
+const ACTIVE_SECTION_STORAGE_KEY = 'fifa-active-section';
 
 const createTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -43,7 +45,16 @@ export default function App() {
 
   const [showChampion, setShowChampion] = useState(false);
   const [selectedStandingTeamId, setSelectedStandingTeamId] = useState(null);
-  const [activeSection, setActiveSection] = useState('groups');
+  const [activeSection, setActiveSection] = useState(() => {
+    if (typeof window === 'undefined') return 'groups';
+    const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
+    return saved === 'bracket' ? 'bracket' : 'groups';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, activeSection);
+  }, [activeSection]);
 
   const flattenedMatches = useMemo(
     () => Object.entries(groupMatches).flatMap(([groupId, matches]) => matches.map((match) => ({ ...match, groupId }))),

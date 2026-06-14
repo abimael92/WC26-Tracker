@@ -51,6 +51,8 @@ const colorLegend = {
   third: 'text-[#D97706] dark:text-[#F59E0B]',
 };
 
+const MOBILE_BRACKET_VIEW_STORAGE_KEY = 'fifa-mobile-bracket-view';
+
 const formatGroupList = (groups) => groups.join(', ');
 
 const formatSeedSlot = (slotText) => {
@@ -226,7 +228,7 @@ function MatchCard({
         {showSeedTemplate ? (
           <div className="space-y-2">
             <select
-              className="w-full rounded-md border border-[#E2E8F0] bg-white p-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+              className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
               value={match.teamA || ''}
               onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamA', e.target.value)}
             >
@@ -239,7 +241,7 @@ function MatchCard({
             </select>
             <TeamPill team={teamA} compact />
             <select
-              className="w-full rounded-md border border-[#E2E8F0] bg-white p-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+              className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
               value={match.teamB || ''}
               onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamB', e.target.value)}
             >
@@ -268,7 +270,7 @@ function MatchCard({
         {teamA && teamB && (
           <select
             disabled={disabled}
-            className="mt-2 w-full rounded-md border border-[#E2E8F0] bg-white p-1 text-xs text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+            className="mt-2 min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
             value={match.winner || ''}
             onChange={(e) => onPickWinner(roundKey, index, e.target.value)}
           >
@@ -300,9 +302,14 @@ export default function BracketView({
   const [showQuickGuide, setShowQuickGuide] = useState(false);
   const [showScheduleView, setShowScheduleView] = useState(false);
   const [guideMode] = useState('simple');
-  const [activeBracketTab, setActiveBracketTab] = useState('partidos');
+  const [activeBracketTab] = useState('partidos');
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? isMobileViewport() : false));
-  const [mobileViewMode, setMobileViewMode] = useState(() => (typeof window !== 'undefined' && isMobileViewport() ? 'list' : 'bracket'));
+  const [mobileViewMode, setMobileViewMode] = useState(() => {
+    if (typeof window === 'undefined') return 'list';
+    const saved = window.localStorage.getItem(MOBILE_BRACKET_VIEW_STORAGE_KEY);
+    if (saved === 'list' || saved === 'bracket') return saved;
+    return isMobileViewport() ? 'list' : 'bracket';
+  });
   const [expandedRounds, setExpandedRounds] = useState(() => new Set(['r32']));
   const [showMobileMatchSheet, setShowMobileMatchSheet] = useState(false);
   const [mobileSheetRoundKey, setMobileSheetRoundKey] = useState('r32');
@@ -528,6 +535,11 @@ export default function BracketView({
     return () => window.clearTimeout(timer);
   }, [isMobile, activeBracketTab, mobileViewMode]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(MOBILE_BRACKET_VIEW_STORAGE_KEY, mobileViewMode);
+  }, [mobileViewMode]);
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -553,16 +565,9 @@ export default function BracketView({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => setActiveBracketTab('partidos')}
-          className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-            activeBracketTab === 'partidos'
-              ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
-              : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
-          }`}
-        >
+        <span className="rounded-full border border-[#2563EB] bg-[#DBEAFE] px-4 py-2 text-sm font-semibold text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]">
           Partidos
-        </button>
+        </span>
       </div>
 
       {activeBracketTab === 'partidos' && (
@@ -572,7 +577,7 @@ export default function BracketView({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setMobileViewMode('list')}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  className={`min-h-10 rounded-full border px-4 py-2 text-sm transition-colors ${
                     mobileViewMode === 'list'
                       ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
                       : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
@@ -582,7 +587,7 @@ export default function BracketView({
                 </button>
                 <button
                   onClick={() => setMobileViewMode('bracket')}
-                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  className={`min-h-10 rounded-full border px-4 py-2 text-sm transition-colors ${
                     mobileViewMode === 'bracket'
                       ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
                       : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
@@ -593,7 +598,7 @@ export default function BracketView({
                 {mobileViewMode === 'bracket' && (
                   <button
                     onClick={scrollToBracketCenter}
-                    className="ml-auto rounded-full border border-[#2563EB] bg-white px-3 py-1 text-xs text-[#2563EB] hover:bg-[#EEF3FB] dark:border-[#3B82F6]/40 dark:bg-[#1A2740] dark:text-[#FFFFFF] dark:hover:bg-[#121A2B]"
+                    className="ml-auto min-h-10 rounded-full border border-[#2563EB] bg-white px-4 py-2 text-sm text-[#2563EB] hover:bg-[#EEF3FB] dark:border-[#3B82F6]/40 dark:bg-[#1A2740] dark:text-[#FFFFFF] dark:hover:bg-[#121A2B]"
                   >
                     Ir al centro
                   </button>
