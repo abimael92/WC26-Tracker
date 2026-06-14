@@ -72,10 +72,10 @@ export default function GroupStage({
               </header>
 
               <div className="mb-2 rounded-md border border-[#D8E2F0] bg-[#F8FAFC] px-2 py-1 text-[10px] text-[#475569] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#9CA3AF]">
-                <p className="hidden sm:block">PJ: Partidos jugados · PTS: Puntos · GD: Diferencia de gol · GF: Goles a favor · GA: Goles en contra</p>
+                <p className="hidden sm:block">PJ: Partidos jugados · PTS: Puntos · DG: Diferencia de gol · GF: Goles a favor · GC: Goles en contra</p>
                 <details className="sm:hidden">
                   <summary className="cursor-pointer">Ver siglas de tabla</summary>
-                  <p className="mt-1">PJ: Jugados · PTS: Puntos · GD: Dif. gol · GF: A favor · GA: En contra</p>
+                  <p className="mt-1">PJ: Jugados · PTS: Puntos · DG: Dif. gol · GF: A favor · GC: En contra</p>
                 </details>
               </div>
 
@@ -85,9 +85,9 @@ export default function GroupStage({
                     <th className="pb-1 text-left">Equipo</th>
                     <th>PJ</th>
                     <th>PTS</th>
-                    <th>GD</th>
+                    <th>DG</th>
                     <th>GF</th>
-                    <th>GA</th>
+                    <th>GC</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -73,6 +73,24 @@ const formatSeedSlot = (slotText) => {
   return slotText.includes(':') ? slotText.split(':').slice(1).join(':').trim() : slotText;
 };
 
+const formatSlotRuleHint = (slotText) => {
+  if (!slotText) return 'Cupo por definir.';
+
+  const winnerMatch = slotText.match(/ganador del Grupo\s+([A-L])/i);
+  if (winnerMatch) return `Debe ser un equipo del Grupo ${winnerMatch[1]} (normalmente el líder).`;
+
+  const bestThirdMatch = slotText.match(/mejor 3\.er lugar de los Grupos\s+([A-L/]+)/i);
+  if (bestThirdMatch) return `Debe ser un mejor 3.er lugar entre los grupos ${bestThirdMatch[1]}.`;
+
+  const runnerGroupsMatch = slotText.match(/sublíder de los Grupos\s+([A-L/]+)/i);
+  if (runnerGroupsMatch) return `Debe ser un sublíder de los grupos ${runnerGroupsMatch[1]}.`;
+
+  const runnerGroupMatch = slotText.match(/sublíder del Grupo\s+([A-L])/i);
+  if (runnerGroupMatch) return `Debe ser el sublíder del Grupo ${runnerGroupMatch[1]}.`;
+
+  return 'Cupo definido por reglas de siembra del torneo.';
+};
+
 const getSlotCandidateIds = (slotText, outcomes) => {
   if (!slotText || !outcomes) return [];
 
@@ -227,31 +245,51 @@ function MatchCard({
       >
         {showSeedTemplate ? (
           <div className="space-y-2">
-            <select
-              className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
-              value={match.teamA || ''}
-              onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamA', e.target.value)}
-            >
-              <option value="">{formatSeedSlot(match.slotA)}</option>
-              {optionTeamsA.map((team) => (
-                <option key={team.id} value={team.id} disabled={team.id === match.teamB}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-start gap-2">
+              <select
+                className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                value={match.teamA || ''}
+                onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamA', e.target.value)}
+              >
+                <option value="">{formatSeedSlot(match.slotA)}</option>
+                {optionTeamsA.map((team) => (
+                  <option key={team.id} value={team.id} disabled={team.id === match.teamB}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+              <details className="relative mt-1">
+                <summary className="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full border border-[#CBD5E1] bg-white text-[10px] font-bold text-[#475569] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7]">
+                  ?
+                </summary>
+                <p className="absolute right-0 z-20 mt-1 w-52 rounded-md border border-[#E2E8F0] bg-white p-2 text-[10px] leading-snug text-[#334155] shadow-md dark:border-[#1F2937] dark:bg-[#121A2B] dark:text-[#D4D4D8]">
+                  {formatSlotRuleHint(match.slotA)}
+                </p>
+              </details>
+            </div>
             <TeamPill team={teamA} compact />
-            <select
-              className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
-              value={match.teamB || ''}
-              onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamB', e.target.value)}
-            >
-              <option value="">{formatSeedSlot(match.slotB)}</option>
-              {optionTeamsB.map((team) => (
-                <option key={team.id} value={team.id} disabled={team.id === match.teamA}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-start gap-2">
+              <select
+                className="min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                value={match.teamB || ''}
+                onChange={(e) => onSetMatchTeam?.(roundKey, index, 'teamB', e.target.value)}
+              >
+                <option value="">{formatSeedSlot(match.slotB)}</option>
+                {optionTeamsB.map((team) => (
+                  <option key={team.id} value={team.id} disabled={team.id === match.teamA}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+              <details className="relative mt-1">
+                <summary className="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full border border-[#CBD5E1] bg-white text-[10px] font-bold text-[#475569] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7]">
+                  ?
+                </summary>
+                <p className="absolute right-0 z-20 mt-1 w-52 rounded-md border border-[#E2E8F0] bg-white p-2 text-[10px] leading-snug text-[#334155] shadow-md dark:border-[#1F2937] dark:bg-[#121A2B] dark:text-[#D4D4D8]">
+                  {formatSlotRuleHint(match.slotB)}
+                </p>
+              </details>
+            </div>
             <TeamPill team={teamB} compact />
           </div>
         ) : (
