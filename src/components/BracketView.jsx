@@ -53,6 +53,15 @@ const colorLegend = {
 
 const MOBILE_BRACKET_VIEW_STORAGE_KEY = 'fifa-mobile-bracket-view';
 const MOBILE_ROUND_FOCUS_STORAGE_KEY = 'fifa-mobile-round-focus';
+const ROUND_PROGRESS_ORDER = ['r32', 'r16', 'qf', 'sf', 'final'];
+const ROUND_BADGE_CLASSES = {
+  r32: 'border-[#0EA5E9]/35 bg-[#E0F2FE] text-[#0369A1] dark:border-[#38BDF8]/40 dark:bg-[#08273A] dark:text-[#7DD3FC]',
+  r16: 'border-[#2563EB]/35 bg-[#DBEAFE] text-[#1D4ED8] dark:border-[#3B82F6]/40 dark:bg-[#1A2740] dark:text-[#8FB4FF]',
+  qf: 'border-[#9333EA]/35 bg-[#F3E8FF] text-[#7E22CE] dark:border-[#A855F7]/40 dark:bg-[#27153A] dark:text-[#D8B4FE]',
+  sf: 'border-[#D97706]/35 bg-[#FFEDD5] text-[#B45309] dark:border-[#F59E0B]/45 dark:bg-[#3A2614] dark:text-[#FCD34D]',
+  final: 'border-[#CA8A04]/35 bg-[#FEF9C3] text-[#854D0E] dark:border-[#EAB308]/45 dark:bg-[#3A3215] dark:text-[#FDE047]',
+  third: 'border-[#475569]/35 bg-[#E2E8F0] text-[#334155] dark:border-[#64748B]/45 dark:bg-[#1E293B] dark:text-[#CBD5E1]',
+};
 
 const formatGroupList = (groups) => groups.join(', ');
 
@@ -214,6 +223,8 @@ function MatchCard({
   const teamA = match.teamA ? teamMap[match.teamA] : null;
   const teamB = match.teamB ? teamMap[match.teamB] : null;
   const isComplete = Boolean(match.winner);
+  const prevCompleteRef = useRef(isComplete);
+  const [completionFlash, setCompletionFlash] = useState(false);
   const showSeedTemplate = roundKey === 'r32';
   const allTeams = Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es'));
   const candidateIdsA = showSeedTemplate ? getSlotCandidateIds(match.slotA, outcomes) : [];
@@ -233,15 +244,33 @@ function MatchCard({
     .filter((team) => !blockedForB.has(team.id))
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
+  useEffect(() => {
+    if (!prevCompleteRef.current && isComplete) {
+      setCompletionFlash(true);
+      const timer = window.setTimeout(() => setCompletionFlash(false), 650);
+      prevCompleteRef.current = isComplete;
+      return () => window.clearTimeout(timer);
+    }
+
+    prevCompleteRef.current = isComplete;
+  }, [isComplete]);
+
   return (
     <>
       <motion.div
         layout
+        animate={
+          completionFlash
+            ? {
+                scale: [1, 1.018, 1],
+              }
+            : undefined
+        }
         className={`relative rounded-xl border p-3 transition-all ${
           active
-            ? 'border-l-4 border-l-[#D97706] border-[#D97706] bg-[#F1F5F9] shadow-[0_4px_12px_rgba(15,23,42,0.08)] dark:border-l-[#F6C453] dark:border-[#F6C453] dark:bg-[#13243A] dark:shadow-[0_4px_12px_rgba(2,6,23,0.45)]'
+            ? 'border-l-4 border-l-[#D97706] border-[#D97706] bg-[#F1F5F9] shadow-[0_8px_18px_rgba(15,23,42,0.16)] ring-2 ring-[#F59E0B]/35 dark:border-l-[#F6C453] dark:border-[#F6C453] dark:bg-[#13243A] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#FBBF24]/30'
             : 'border-l-4 border-l-[#2563EB] border-[#E2E8F0] bg-white shadow-[0_2px_6px_rgba(15,23,42,0.08)] hover:scale-[1.02] hover:shadow-[0_4px_12px_rgba(15,23,42,0.08)] dark:border-l-[#38BDF8] dark:border-[#22324D] dark:bg-[#0F1A2E] dark:shadow-[0_2px_6px_rgba(2,6,23,0.4)]'
-        }`}
+        } ${completionFlash ? 'ring-2 ring-[#10B981]/40 dark:ring-[#34D399]/40' : ''}`}
         transition={{ duration: 0.2 }}
         onClick={onActivate}
       >
@@ -452,16 +481,43 @@ export default function BracketView({
   }, [bracket]);
 
   const totalProgressCounts = useMemo(() => {
-    const keys = ['r32', 'r16', 'qf', 'sf', 'final'];
+    const keys = ROUND_PROGRESS_ORDER;
     const all = keys.flatMap((key) => bracket[key] || []);
     const completed = all.filter((match) => match.winner).length;
     return { completed, total: all.length };
+  }, [bracket]);
+
+  const roundProgressSummary = useMemo(
+    () => ROUND_PROGRESS_ORDER.map((roundKey) => ({ roundKey, ...getRoundProgressCounts(roundKey) })),
+    [bracket]
+  );
+
+  const quickSummary = useMemo(() => {
+    const allMatches = Object.values(bracket).flat();
+    const completed = allMatches.filter((match) => match.winner).length;
+    const pending = allMatches.length - completed;
+    const mostAdvanced = [...ROUND_PROGRESS_ORDER].reverse().find((roundKey) => (bracket[roundKey] || []).some((match) => match.winner)) || 'r32';
+    return { completed, pending, mostAdvanced };
   }, [bracket]);
 
   const filteredScheduleRows = useMemo(
     () => (scheduleRoundFilter === 'all' ? allScheduleRows : allScheduleRows.filter((row) => row.roundKey === scheduleRoundFilter)),
     [allScheduleRows, scheduleRoundFilter]
   );
+
+  const scheduleFilterLabel = scheduleRoundFilter === 'all' ? 'Todas las rondas' : ROUND_LABELS[scheduleRoundFilter] || scheduleRoundFilter;
+  const mobileFocusLabel =
+    mobileRoundFocus === 'all'
+      ? 'Todas'
+      : mobileRoundFocus === 'r16'
+        ? 'Octavos'
+        : mobileRoundFocus === 'qf'
+          ? 'Cuartos'
+          : mobileRoundFocus === 'sf'
+            ? 'Semis'
+            : mobileRoundFocus;
+
+  const getRoundBadgeClass = (roundKey) => ROUND_BADGE_CLASSES[roundKey] || ROUND_BADGE_CLASSES.r16;
 
   const handleOpenMobileSheet = (roundKey, index, match) => {
     setMobileSheetRoundKey(roundKey);
@@ -784,6 +840,53 @@ export default function BracketView({
             </div>
           )}
 
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-[#D8E2F0] bg-white p-3 dark:border-[#25324A] dark:bg-[#121A2B]">
+              <p className="text-[11px] uppercase tracking-wide text-[#64748B] dark:text-[#9CA3AF]">Pendientes</p>
+              <p className="font-display text-2xl text-[#B45309] dark:text-[#F59E0B]">{quickSummary.pending}</p>
+            </div>
+            <div className="rounded-xl border border-[#D8E2F0] bg-white p-3 dark:border-[#25324A] dark:bg-[#121A2B]">
+              <p className="text-[11px] uppercase tracking-wide text-[#64748B] dark:text-[#9CA3AF]">Completos</p>
+              <p className="font-display text-2xl text-[#059669] dark:text-[#34D399]">{quickSummary.completed}</p>
+            </div>
+            <div className="rounded-xl border border-[#D8E2F0] bg-white p-3 dark:border-[#25324A] dark:bg-[#121A2B]">
+              <p className="text-[11px] uppercase tracking-wide text-[#64748B] dark:text-[#9CA3AF]">Ronda más avanzada</p>
+              <span className={`mt-1 inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getRoundBadgeClass(quickSummary.mostAdvanced)}`}>
+                {ROUND_LABELS[quickSummary.mostAdvanced]}
+              </span>
+            </div>
+            <div className="rounded-xl border border-[#D8E2F0] bg-white p-3 dark:border-[#25324A] dark:bg-[#121A2B]">
+              <p className="text-[11px] uppercase tracking-wide text-[#64748B] dark:text-[#9CA3AF]">Equipo seleccionado</p>
+              <p className="truncate text-sm font-semibold text-[#0F172A] dark:text-[#FFFFFF]">{selectedStandingTeam?.name || 'Sin selección'}</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[#D8E2F0] bg-white p-3 dark:border-[#25324A] dark:bg-[#121A2B]">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#64748B] dark:text-[#9CA3AF]">Progreso por ronda</p>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+              {roundProgressSummary.map((round) => (
+                <div key={`summary-round-${round.roundKey}`} className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2 dark:border-[#1F2937] dark:bg-[#1A2235]">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(round.roundKey)}`}>
+                      {ROUND_LABELS[round.roundKey]}
+                    </span>
+                    <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
+                      {round.completed}/{round.total}
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    {Array.from({ length: round.total || 1 }).map((_, idx) => (
+                      <span
+                        key={`segment-${round.roundKey}-${idx}`}
+                        className={`h-1.5 flex-1 rounded-full ${idx < round.completed ? 'bg-[#10B981] dark:bg-[#34D399]' : 'bg-[#D8E2F0] dark:bg-[#25324A]'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {showScheduleView && (
             <div className="rounded-2xl border border-[#D8E2F0] bg-white p-3 dark:border-[#25324A] dark:bg-[#121A2B]">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -802,35 +905,67 @@ export default function BracketView({
                   <option value="final">Final</option>
                 </select>
               </div>
-              <div className="max-h-64 overflow-auto rounded-lg border border-[#D8E2F0] dark:border-[#25324A]">
-                <table className="w-full text-left text-xs sm:text-sm">
-                  <thead className="bg-[#F4F7FC] text-[#0F172A] dark:bg-[#1A2740] dark:text-[#A9B4C7]">
-                    <tr>
-                      <th className="px-3 py-2">Ronda</th>
-                      <th className="px-3 py-2">Partido</th>
-                      <th className="px-3 py-2">Fecha</th>
-                      <th className="px-3 py-2">Hora</th>
-                      <th className="px-3 py-2">Sede</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredScheduleRows.map((row) => {
-                      const local = formatMatchScheduleLocal(row);
-                      return (
-                        <tr key={row.id} className="border-t border-[#D8E2F0] text-[#0F172A] dark:border-[#25324A] dark:text-[#FFFFFF]">
-                          <td className="px-3 py-2">{ROUND_LABELS[row.roundKey]}</td>
-                          <td className="px-3 py-2">{row.matchNumber}</td>
-                          <td className="px-3 py-2">{local?.dateText}</td>
-                          <td className="px-3 py-2">{local?.timeText}</td>
-                          <td className="px-3 py-2">
-                            {row.venue} · {row.city}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              {scheduleRoundFilter !== 'all' && (
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="rounded-full border border-[#2563EB] bg-[#DBEAFE] px-2.5 py-1 text-[11px] font-semibold text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]">
+                    Filtro: {scheduleFilterLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleRoundFilter('all')}
+                    className="rounded-full border border-[#CBD5E1] bg-white px-2 py-1 text-[10px] font-semibold text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+                  >
+                    Mostrar todas
+                  </button>
+                </div>
+              )}
+              {filteredScheduleRows.length ? (
+                <div className="max-h-64 overflow-auto rounded-lg border border-[#D8E2F0] dark:border-[#25324A]">
+                  <table className="w-full text-left text-xs sm:text-sm">
+                    <thead className="bg-[#F4F7FC] text-[#0F172A] dark:bg-[#1A2740] dark:text-[#A9B4C7]">
+                      <tr>
+                        <th className="px-3 py-2">Ronda</th>
+                        <th className="px-3 py-2">Partido</th>
+                        <th className="px-3 py-2">Fecha</th>
+                        <th className="px-3 py-2">Hora</th>
+                        <th className="px-3 py-2">Sede</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredScheduleRows.map((row) => {
+                        const local = formatMatchScheduleLocal(row);
+                        return (
+                          <tr key={row.id} className="border-t border-[#D8E2F0] text-[#0F172A] dark:border-[#25324A] dark:text-[#FFFFFF]">
+                            <td className="px-3 py-2">
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(row.roundKey)}`}>
+                                {ROUND_LABELS[row.roundKey]}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2">{row.matchNumber}</td>
+                            <td className="px-3 py-2">{local?.dateText}</td>
+                            <td className="px-3 py-2">{local?.timeText}</td>
+                            <td className="px-3 py-2">
+                              {row.venue} · {row.city}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-5 text-center dark:border-[#25324A] dark:bg-[#1A2235]">
+                  <p className="text-sm font-semibold text-[#334155] dark:text-[#D4D4D8]">No hay partidos para este filtro</p>
+                  <p className="mt-1 text-xs text-[#64748B] dark:text-[#9CA3AF]">Cambia de ronda o muestra todas para ver el calendario completo.</p>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleRoundFilter('all')}
+                    className="mt-3 rounded-full border border-[#2563EB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6]/50 dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
+                  >
+                    Mostrar todas las rondas
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -880,6 +1015,21 @@ export default function BracketView({
                   ))}
                 </div>
 
+                {mobileRoundFocus !== 'all' && (
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="rounded-full border border-[#2563EB] bg-[#DBEAFE] px-2.5 py-1 text-[11px] font-semibold text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]">
+                      Vista: {mobileFocusLabel}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setMobileRoundFocus('all')}
+                      className="rounded-full border border-[#CBD5E1] bg-white px-2 py-1 text-[10px] font-semibold text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+                    >
+                      Quitar filtro
+                    </button>
+                  </div>
+                )}
+
                 <div className="h-2 w-full rounded-full bg-[#F1F5F9] dark:bg-[#1A2235]">
                   <div className="h-2 rounded-full bg-[#2563EB] dark:bg-[#3B82F6]" style={{ width: `${totalCompletion}%` }} />
                 </div>
@@ -901,8 +1051,16 @@ export default function BracketView({
                 return (
                   <div id={`mobile-round-${roundKey}`} key={`compact-${roundKey}`} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
                     <div className="mb-2 flex items-center justify-between border-b border-[#E2E8F0] pb-2 dark:border-[#1F2937]">
-                      <p className="font-display text-lg text-[#2563EB] dark:text-[#FBBF24]">{ROUND_LABELS[roundKey]}</p>
+                      <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getRoundBadgeClass(roundKey)}`}>{ROUND_LABELS[roundKey]}</span>
                       <span className="text-[11px] text-[#475569] dark:text-[#9CA3AF]">{completion}% ({progress.completed}/{progress.total})</span>
+                    </div>
+                    <div className="mb-2 flex gap-1">
+                      {Array.from({ length: progress.total || 1 }).map((_, idx) => (
+                        <span
+                          key={`mobile-segment-${roundKey}-${idx}`}
+                          className={`h-1.5 flex-1 rounded-full ${idx < progress.completed ? 'bg-[#10B981] dark:bg-[#34D399]' : 'bg-[#D8E2F0] dark:bg-[#25324A]'}`}
+                        />
+                      ))}
                     </div>
 
                     <div className="space-y-3">
@@ -1134,9 +1292,14 @@ export default function BracketView({
                         }}
                       >
                         <div className="mx-auto w-full max-w-[210px] md:max-w-[245px]">
-                          <p className="mb-1 font-display text-sm font-semibold text-[#475569] md:text-base dark:text-[#9CA3AF]">
-                            {ROUND_LABELS[roundKey]} ({getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total})
-                          </p>
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(roundKey)}`}>
+                              {ROUND_LABELS[roundKey]}
+                            </span>
+                            <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
+                              {getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total}
+                            </span>
+                          </div>
                           <MatchCard
                             match={match}
                             teamMap={teamMap}
@@ -1166,9 +1329,14 @@ export default function BracketView({
                         }}
                       >
                         <div className="mx-auto w-full max-w-[210px] md:max-w-[245px]">
-                          <p className="mb-1 text-right font-display text-sm font-semibold text-[#475569] md:text-base dark:text-[#9CA3AF]">
-                            {ROUND_LABELS[roundKey]} ({getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total})
-                          </p>
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
+                              {getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total}
+                            </span>
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(roundKey)}`}>
+                              {ROUND_LABELS[roundKey]}
+                            </span>
+                          </div>
                           <MatchCard
                             match={match}
                             teamMap={teamMap}
@@ -1196,7 +1364,12 @@ export default function BracketView({
 
                   <div style={{ gridColumn: 5, gridRow: FINAL_ROW }}>
                     <div className="mx-auto w-full max-w-[220px] md:max-w-[260px]">
-                      <p className="mb-2 font-display text-center text-lg text-[#2563EB] md:text-xl dark:text-[#FBBF24]">{ROUND_LABELS.final}</p>
+                      <div className="mb-2 flex items-center justify-center gap-2">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getRoundBadgeClass('final')}`}>{ROUND_LABELS.final}</span>
+                        <span className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">
+                          {getRoundProgressCounts('final').completed}/{getRoundProgressCounts('final').total}
+                        </span>
+                      </div>
                       {bracket.final.map((match, index) => (
                         <MatchCard
                           key={match.id}
@@ -1219,7 +1392,12 @@ export default function BracketView({
 
                   <div style={{ gridColumn: 5, gridRow: THIRD_ROW }}>
                     <div className="mx-auto w-full max-w-[220px] md:max-w-[260px]">
-                      <p className="mb-2 font-display text-center text-lg text-[#475569] md:text-xl dark:text-[#9CA3AF]">{ROUND_LABELS.third}</p>
+                      <div className="mb-2 flex items-center justify-center gap-2">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getRoundBadgeClass('third')}`}>{ROUND_LABELS.third}</span>
+                        <span className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">
+                          {getRoundProgressCounts('third').completed}/{getRoundProgressCounts('third').total}
+                        </span>
+                      </div>
                       {bracket.third.map((match, index) => (
                         <MatchCard
                           key={match.id}

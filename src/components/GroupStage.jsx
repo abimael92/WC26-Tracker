@@ -94,6 +94,7 @@ export default function GroupStage({
                   {standings.map((row, idx) => {
                     const team = teamMap[row.teamId];
                     const adv = idx < 2 || bestThirdIds.has(row.teamId);
+                    const isSelected = selectedTeamId === row.teamId;
                     const samePointsRows = standings.filter((entry) => entry.points === row.points);
                     const tieBreakByGd = samePointsRows.length > 1 && new Set(samePointsRows.map((entry) => entry.gd)).size > 1;
                     const tieBreakByGf =
@@ -107,7 +108,9 @@ export default function GroupStage({
                       <tr
                         key={row.teamId}
                         className={`${adv ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#0F172A] dark:text-[#FFFFFF]'} cursor-pointer border-b border-[#D8E2F0] dark:border-[#25324A] ${
-                          selectedTeamId === row.teamId ? 'bg-[#EEF3FB] dark:bg-[#1A2740]' : 'odd:bg-[#F4F7FC] even:bg-white hover:bg-[#EEF3FB] dark:odd:bg-[#121A2B] dark:even:bg-[#121A2B] dark:hover:bg-[#1A2740]'
+                          isSelected
+                            ? 'bg-[#DBEAFE] font-semibold shadow-[inset_0_0_0_1px_rgba(37,99,235,0.45),inset_3px_0_0_0_#2563EB] dark:bg-[#1A2740] dark:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.55),inset_3px_0_0_0_#3B82F6]'
+                            : 'odd:bg-[#F4F7FC] even:bg-white hover:bg-[#EEF3FB] dark:odd:bg-[#121A2B] dark:even:bg-[#121A2B] dark:hover:bg-[#1A2740]'
                         }`}
                         onClick={() => onSelectTeam?.(row.teamId)}
                       >

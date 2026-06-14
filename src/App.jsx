@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import html2canvas from 'html2canvas';
+import bracketThemeSong from './assets/WorldCup26 Bracket Theme.mp3';
 import BracketView from './components/BracketView';
 import ChampionOverlay from './components/ChampionOverlay';
 import GroupStage from './components/GroupStage';
@@ -9,6 +10,7 @@ import { useTournamentStore } from './store/useTournamentStore';
 
 const ACTIVE_SECTION_STORAGE_KEY = 'fifa-active-section';
 const A11Y_MODE_STORAGE_KEY = 'fifa-a11y-mode';
+const BGM_ENABLED_STORAGE_KEY = 'fifa-bgm-enabled';
 
 const createTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -46,6 +48,8 @@ export default function App() {
 
   const [showChampion, setShowChampion] = useState(false);
   const [selectedStandingTeamId, setSelectedStandingTeamId] = useState(null);
+  const [teamSearchQuery, setTeamSearchQuery] = useState('');
+  const bgmAudioRef = useRef(null);
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === 'undefined') return 'groups';
     const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
@@ -54,6 +58,11 @@ export default function App() {
   const [a11yMode, setA11yMode] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(A11Y_MODE_STORAGE_KEY) === 'on';
+  });
+  const [bgmEnabled, setBgmEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const saved = window.localStorage.getItem(BGM_ENABLED_STORAGE_KEY);
+    return saved !== 'off';
   });
 
   useEffect(() => {
@@ -65,6 +74,47 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(A11Y_MODE_STORAGE_KEY, a11yMode ? 'on' : 'off');
   }, [a11yMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(BGM_ENABLED_STORAGE_KEY, bgmEnabled ? 'on' : 'off');
+  }, [bgmEnabled]);
+
+  useEffect(() => {
+    const audio = bgmAudioRef.current;
+    if (!audio) return;
+
+    audio.loop = true;
+    audio.volume = 0.3;
+
+    if (!bgmEnabled) {
+      audio.pause();
+      return;
+    }
+
+    let cleaned = false;
+    const playAttempt = () => {
+      if (cleaned) return;
+      audio.play().catch(() => {});
+    };
+
+    playAttempt();
+
+    const resumeOnInteraction = () => {
+      playAttempt();
+      window.removeEventListener('pointerdown', resumeOnInteraction);
+      window.removeEventListener('keydown', resumeOnInteraction);
+    };
+
+    window.addEventListener('pointerdown', resumeOnInteraction, { once: true });
+    window.addEventListener('keydown', resumeOnInteraction, { once: true });
+
+    return () => {
+      cleaned = true;
+      window.removeEventListener('pointerdown', resumeOnInteraction);
+      window.removeEventListener('keydown', resumeOnInteraction);
+    };
+  }, [bgmEnabled]);
 
   const flattenedMatches = useMemo(
     () => Object.entries(groupMatches).flatMap(([groupId, matches]) => matches.map((match) => ({ ...match, groupId }))),
@@ -140,6 +190,27 @@ export default function App() {
 
   const champion = useMemo(() => (bracket.champion ? teamMap[bracket.champion] : null), [bracket.champion, teamMap]);
 
+  const searchableTeams = useMemo(
+    () => Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [teamMap]
+  );
+
+  const selectedSearchTeam = useMemo(() => {
+    const normalized = teamSearchQuery.trim().toLowerCase();
+    if (!normalized) return null;
+    return searchableTeams.find((team) => {
+      const name = team.name.toLowerCase();
+      const code = team.fifaCode.toLowerCase();
+      return name === normalized || code === normalized || `${team.name} (${team.fifaCode})`.toLowerCase() === normalized;
+    });
+  }, [searchableTeams, teamSearchQuery]);
+
+  const handleTeamSearchJump = (section) => {
+    if (!selectedSearchTeam) return;
+    setSelectedStandingTeamId(selectedSearchTeam.id);
+    setActiveSection(section);
+  };
+
   const handleWinnerPick = (roundKey, matchIndex, winnerId) => {
     if (!winnerId) return;
     setWinner(roundKey, matchIndex, winnerId);
@@ -164,6 +235,7 @@ export default function App() {
 
   return (
     <div className={`${rootTheme} ${a11yMode ? 'a11y-mode' : ''} min-h-screen bg-app text-[#0F172A] dark:text-[#FFFFFF]`}>
+      <audio ref={bgmAudioRef} src={bracketThemeSong} preload="auto" />
       <div className="animated-bg" />
       <ChampionOverlay open={showChampion} champion={champion} />
 
@@ -205,6 +277,16 @@ export default function App() {
                 }`}
               >
                 Accesible: {a11yMode ? 'ON' : 'OFF'}
+              </button>
+              <button
+                onClick={() => setBgmEnabled((value) => !value)}
+                className={`rounded-full border px-3 py-2 font-semibold transition-colors ${
+                  bgmEnabled
+                    ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6] dark:bg-[#1A2740] dark:text-[#8FB4FF]'
+                    : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]'
+                }`}
+              >
+                Música: {bgmEnabled ? 'ON' : 'OFF'}
               </button>
             </div>
           </div>
@@ -260,39 +342,92 @@ export default function App() {
             >
               Fase eliminatoria
             </button>
+            <div className="ml-auto flex min-w-[280px] flex-wrap items-center gap-2">
+              <input
+                list="team-search-options"
+                value={teamSearchQuery}
+                onChange={(e) => setTeamSearchQuery(e.target.value)}
+                placeholder="Buscar equipo o código FIFA"
+                className="min-w-[220px] flex-1 rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/25 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:placeholder:text-[#7A879D]"
+              />
+              <datalist id="team-search-options">
+                {searchableTeams.map((team) => (
+                  <option key={team.id} value={`${team.name} (${team.fifaCode})`} />
+                ))}
+              </datalist>
+              <button
+                type="button"
+                onClick={() => handleTeamSearchJump('groups')}
+                disabled={!selectedSearchTeam}
+                className="rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-xs font-semibold text-[#1F2937] hover:bg-[#F1F5F9] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+              >
+                Ir a grupos
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTeamSearchJump('bracket')}
+                disabled={!selectedSearchTeam}
+                className="rounded-full border border-[#2563EB] bg-white px-3 py-2 text-xs font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
+              >
+                Ver en cruces
+              </button>
+            </div>
           </div>
 
           <div className="rounded-3xl border border-[#CBD5E1] bg-white p-3 md:p-4 dark:border-[#25324A] dark:bg-[#121A2B]">
-            {activeSection === 'groups' ? (
-              <GroupStage
-                teamMap={teamMap}
-                groupMatches={groupMatches}
-                outcomes={outcomes}
-                stageLocked={stageLocked}
-                onScoreChange={updateGroupMatch}
-                manualGroupPlacements={manualGroupPlacements}
-                onToggleGroupPlacement={toggleGroupPlacement}
-                onClearGroupPlacement={clearGroupPlacement}
-                onClearAllGroupPlacements={clearAllGroupPlacements}
-                selectedTeamId={selectedStandingTeamId}
-                onSelectTeam={setSelectedStandingTeamId}
-              />
-            ) : (
-              <BracketView
-                teamMap={teamMap}
-                bracket={bracket}
-                outcomes={outcomes}
-                onPickWinner={handleWinnerPick}
-                onSetMatchTeam={setMatchTeam}
-                onResetMatch={resetMatch}
-                stageLocked={stageLocked}
-                selectedStandingTeamId={selectedStandingTeamId}
-                onBackToGroups={() => setActiveSection('groups')}
-              />
-            )}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={activeSection}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
+                {activeSection === 'groups' ? (
+                  <GroupStage
+                    teamMap={teamMap}
+                    groupMatches={groupMatches}
+                    outcomes={outcomes}
+                    stageLocked={stageLocked}
+                    onScoreChange={updateGroupMatch}
+                    manualGroupPlacements={manualGroupPlacements}
+                    onToggleGroupPlacement={toggleGroupPlacement}
+                    onClearGroupPlacement={clearGroupPlacement}
+                    onClearAllGroupPlacements={clearAllGroupPlacements}
+                    selectedTeamId={selectedStandingTeamId}
+                    onSelectTeam={setSelectedStandingTeamId}
+                  />
+                ) : (
+                  <BracketView
+                    teamMap={teamMap}
+                    bracket={bracket}
+                    outcomes={outcomes}
+                    onPickWinner={handleWinnerPick}
+                    onSetMatchTeam={setMatchTeam}
+                    onResetMatch={resetMatch}
+                    stageLocked={stageLocked}
+                    selectedStandingTeamId={selectedStandingTeamId}
+                    onBackToGroups={() => setActiveSection('groups')}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </section>
       </main>
+
+      <button
+        type="button"
+        onClick={() => setBgmEnabled((value) => !value)}
+        aria-label={bgmEnabled ? 'Pausar música' : 'Reproducir música'}
+        className={`fixed bottom-4 right-4 z-30 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_6px_16px_rgba(15,23,42,0.22)] transition-colors ${
+          bgmEnabled
+            ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] hover:bg-[#BFDBFE] dark:border-[#3B82F6]/60 dark:bg-[#1A2740] dark:text-[#8FB4FF] dark:hover:bg-[#203255]'
+            : 'border-[#CBD5E1] bg-white text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]'
+        }`}
+      >
+        {bgmEnabled ? '⏸ Pausar música' : '▶ Reproducir música'}
+      </button>
     </div>
   );
 }
