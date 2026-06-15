@@ -89,7 +89,7 @@ export default function GroupStage({
         </div>
       </div>
 
-      <div className="md:hidden rounded-xl border border-[#D8E2F0] bg-[#F8FAFC] p-2 dark:border-[#25324A] dark:bg-[#1A2235]">
+      <div className="lg:hidden rounded-xl border border-[#D8E2F0] bg-[#F8FAFC] p-2 dark:border-[#25324A] dark:bg-[#1A2235]">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -115,7 +115,7 @@ export default function GroupStage({
         </div>
       </div>
 
-      <div ref={mobileGroupsScrollRef} className="group-scroll flex snap-x gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-3 md:overflow-visible">
+      <div ref={mobileGroupsScrollRef} className="group-scroll flex snap-x gap-4 overflow-x-auto pb-2 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:overflow-visible">
         {GROUPS.map((group, index) => {
           const standings = outcomes.standingsByGroup[group.id] || [];
           const hasManualPlacement = Boolean(manualGroupPlacements?.[group.id] && Object.keys(manualGroupPlacements[group.id]).length);
