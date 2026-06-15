@@ -417,6 +417,7 @@ export default function BracketView({
     const saved = window.localStorage.getItem(MOBILE_ROUND_FOCUS_STORAGE_KEY);
     return ['all', 'r16', 'qf', 'sf'].includes(saved) ? saved : 'all';
   });
+  const [mobileSideTab, setMobileSideTab] = useState('left');
   const [scheduleRoundFilter, setScheduleRoundFilter] = useState('all');
   const bracketScrollRef = useRef(null);
   const bracketCanvasRef = useRef(null);
@@ -469,6 +470,13 @@ export default function BracketView({
     ],
     []
   );
+
+  const mobileVisibleRoundMeta = useMemo(() => {
+    if (mobileSideTab === 'center') {
+      return mobileRoundMeta.filter((round) => ['final', 'third'].includes(round.key));
+    }
+    return mobileRoundMeta.filter((round) => !['final', 'third'].includes(round.key));
+  }, [mobileRoundMeta, mobileSideTab]);
 
   const getScheduleText = (roundKey, index) => {
     const schedule = getMatchSchedule(roundKey, index);
@@ -1132,13 +1140,36 @@ export default function BracketView({
                 </div>
 
                 <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                  {mobileRoundMeta.map((round) => (
+                  {mobileVisibleRoundMeta.map((round) => (
                     <button
                       key={`jump-${round.key}`}
                       onClick={() => scrollToMobileRound(round.key)}
                       className="min-h-[44px] rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-xs font-semibold text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]"
                     >
                       {round.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                  {[
+                    { key: 'left', label: 'Lado izquierdo' },
+                    { key: 'center', label: 'Centro' },
+                    { key: 'right', label: 'Lado derecho' },
+                  ].map((option) => (
+                    <button
+                      key={`side-${option.key}`}
+                      onClick={() => {
+                        setMobileSideTab(option.key);
+                        setMobileRoundFocus('all');
+                      }}
+                      className={`min-h-[40px] rounded-full border px-3 text-xs font-semibold transition-colors ${
+                        mobileSideTab === option.key
+                          ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
+                          : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]'
+                      }`}
+                    >
+                      {option.label}
                     </button>
                   ))}
                 </div>
@@ -1190,12 +1221,22 @@ export default function BracketView({
               {compactRoundOrder.map((roundKey) => {
                 if (mobileRoundFocus !== 'all' && roundKey !== mobileRoundFocus) return null;
                 const roundMatches = bracket[roundKey] || [];
-                if (!roundMatches.length) return null;
+                const isCenterRound = roundKey === 'final' || roundKey === 'third';
+                const isSideRound = sideRoundOrder.includes(roundKey);
+
+                if (mobileSideTab === 'center' && !isCenterRound) return null;
+                if (mobileSideTab !== 'center' && isCenterRound) return null;
+
+                const roundEntries = isSideRound
+                  ? getSideMatches(roundKey, mobileSideTab).map(({ match, sourceIndex }) => ({ match, sourceIndex }))
+                  : roundMatches.map((match, sourceIndex) => ({ match, sourceIndex }));
+
+                if (!roundEntries.length) return null;
                 const isExpanded = expandedRounds.has(roundKey);
                 const completion = getRoundCompletion(roundKey);
                 const progress = getRoundProgressCounts(roundKey);
-                const visibleMatches = isExpanded ? roundMatches : roundMatches.slice(0, 6);
-                const isCollapsed = roundMatches.length > 6 && !isExpanded;
+                const visibleEntries = isExpanded ? roundEntries : roundEntries.slice(0, 6);
+                const isCollapsed = roundEntries.length > 6 && !isExpanded;
 
                 return (
                   <div id={`mobile-round-${roundKey}`} key={`compact-${roundKey}`} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
@@ -1213,7 +1254,7 @@ export default function BracketView({
                     </div>
 
                     <div className="space-y-3">
-                      {visibleMatches.map((match, index) => {
+                      {visibleEntries.map(({ match, sourceIndex }) => {
                         const teamA = match.teamA ? teamMap[match.teamA] : null;
                         const teamB = match.teamB ? teamMap[match.teamB] : null;
                         const winnerA = match.winner && teamA && match.winner === teamA.id;
@@ -1224,9 +1265,9 @@ export default function BracketView({
                           <button
                             key={`compact-card-${match.id}`}
                             className="w-full rounded-xl border border-[#E2E8F0] bg-white p-3 text-left shadow-[0_2px_6px_rgba(15,23,42,0.08)] active:bg-[#F1F5F9] dark:border-[#1F2937] dark:bg-[#141B2B]"
-                            onClick={() => handleOpenMobileSheet(roundKey, index, match)}
-                            onTouchStart={(e) => handleMobileTouchStart(e, roundKey, index)}
-                            onTouchEnd={(e) => handleMobileTouchEnd(e, roundKey, index, match)}
+                            onClick={() => handleOpenMobileSheet(roundKey, sourceIndex, match)}
+                            onTouchStart={(e) => handleMobileTouchStart(e, roundKey, sourceIndex)}
+                            onTouchEnd={(e) => handleMobileTouchEnd(e, roundKey, sourceIndex, match)}
                             onTouchCancel={clearMobilePressTimer}
                           >
                             <div className="mb-2 flex justify-end">
@@ -1258,7 +1299,7 @@ export default function BracketView({
                               </div>
 
                               <div className="flex items-center justify-between text-[12px] text-[#475569] dark:text-[#9CA3AF]">
-                                <span>{getScheduleText(roundKey, index) || 'Sin horario'}</span>
+                                <span>{getScheduleText(roundKey, sourceIndex) || 'Sin horario'}</span>
                                 <span>Avanza el ganador →</span>
                               </div>
                             </div>
@@ -1275,7 +1316,7 @@ export default function BracketView({
                         </button>
                       )}
 
-                      {roundMatches.length > 6 && isExpanded && (
+                      {roundEntries.length > 6 && isExpanded && (
                         <button
                           onClick={() => toggleRoundExpanded(roundKey)}
                           className="w-full min-h-[44px] rounded-xl border border-[#E2E8F0] bg-[#F1F5F9] px-3 text-sm text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]"

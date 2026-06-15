@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { GROUPS } from '../data/teams';
 
@@ -16,10 +17,56 @@ export default function GroupStage({
   selectedTeamId,
   onSelectTeam,
 }) {
+  const groupIds = useMemo(() => GROUPS.map((group) => group.id), []);
+  const [activeMobileGroupIndex, setActiveMobileGroupIndex] = useState(0);
+  const mobileGroupsScrollRef = useRef(null);
   const bestThirdIds = new Set(outcomes.bestThirds.map((entry) => entry.teamId));
   const hasAnyManualPlacement = Boolean(
     manualGroupPlacements && Object.values(manualGroupPlacements).some((groupPlacement) => Object.keys(groupPlacement || {}).length)
   );
+
+  const scrollToMobileGroup = (nextIndex) => {
+    const clampedIndex = Math.min(Math.max(nextIndex, 0), groupIds.length - 1);
+    const groupId = groupIds[clampedIndex];
+    const container = mobileGroupsScrollRef.current;
+    if (!container || !groupId) return;
+
+    const targetCard = container.querySelector(`[data-group-card="${groupId}"]`);
+    if (!targetCard) return;
+
+    const nextLeft = Math.max(0, targetCard.offsetLeft - 8);
+    container.scrollTo({ left: nextLeft, behavior: 'smooth' });
+    setActiveMobileGroupIndex(clampedIndex);
+  };
+
+  useEffect(() => {
+    const container = mobileGroupsScrollRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const cards = Array.from(container.querySelectorAll('[data-group-card]'));
+      if (!cards.length) return;
+
+      const viewportCenter = container.scrollLeft + container.clientWidth / 2;
+      let closestIndex = 0;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      cards.forEach((card, index) => {
+        const cardCenter = card.offsetLeft + card.clientWidth / 2;
+        const distance = Math.abs(cardCenter - viewportCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = index;
+        }
+      });
+
+      setActiveMobileGroupIndex(closestIndex);
+    };
+
+    onScroll();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
     <section className="space-y-4">
@@ -42,12 +89,39 @@ export default function GroupStage({
         </div>
       </div>
 
-      <div className="group-scroll flex snap-x gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-3 md:overflow-visible">
+      <div className="md:hidden rounded-xl border border-[#D8E2F0] bg-[#F8FAFC] p-2 dark:border-[#25324A] dark:bg-[#1A2235]">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => scrollToMobileGroup(activeMobileGroupIndex - 1)}
+            disabled={activeMobileGroupIndex <= 0}
+            className="min-h-[44px] rounded-full border border-[#CBD5E1] bg-white px-4 text-sm font-semibold text-[#1F2937] hover:bg-[#EEF3FB] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
+          >
+            ← Anterior
+          </button>
+
+          <span className="flex-1 text-center text-xs font-semibold text-[#475569] dark:text-[#9CA3AF]">
+            Grupo {groupIds[activeMobileGroupIndex]} · {activeMobileGroupIndex + 1}/{groupIds.length}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => scrollToMobileGroup(activeMobileGroupIndex + 1)}
+            disabled={activeMobileGroupIndex >= groupIds.length - 1}
+            className="min-h-[44px] rounded-full border border-[#2563EB] bg-white px-4 text-sm font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
+          >
+            Siguiente →
+          </button>
+        </div>
+      </div>
+
+      <div ref={mobileGroupsScrollRef} className="group-scroll flex snap-x gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-3 md:overflow-visible">
         {GROUPS.map((group, index) => {
           const standings = outcomes.standingsByGroup[group.id] || [];
           const hasManualPlacement = Boolean(manualGroupPlacements?.[group.id] && Object.keys(manualGroupPlacements[group.id]).length);
           return (
             <motion.article
+              data-group-card={group.id}
               key={group.id}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}

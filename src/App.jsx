@@ -228,7 +228,7 @@ export default function App() {
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-display text-5xl leading-none tracking-wide text-[#0F172A] dark:text-white">Simulador FIFA 2026</p>
+              <p className="font-display text-5xl leading-none tracking-wide text-[#0F172A] dark:text-white">FIFA 2026</p>
               <p className="font-body text-sm text-[#334155] dark:text-[#A9B4C7]">48 equipos · 12 grupos · camino completo hasta coronar al campeón</p>
             </div>
 
