@@ -176,10 +176,10 @@ const applyManualPlacements = (outcomes, manualGroupPlacements = {}) => {
   };
 };
 
-const recomputeTournament = (groupMatches, teamsMap, manualGroupPlacements) => {
+const recomputeTournament = (groupMatches, teamsMap, manualGroupPlacements, stageLocked = false) => {
   const baseOutcomes = computeGroupResults(groupMatches, teamsMap);
   const outcomes = applyManualPlacements(baseOutcomes, manualGroupPlacements);
-  const bracket = buildBracket(outcomes);
+  const bracket = stageLocked ? buildBracket(outcomes) : buildBlankBracket(outcomes);
   return { outcomes, bracket };
 };
 
@@ -256,7 +256,7 @@ const normalizeGroupMatchesForHydration = (groupMatches = {}) => {
 const baseState = () => {
   const groupMatches = initialGroupMatches();
   const manualGroupPlacements = {};
-  const { outcomes, bracket } = recomputeTournament(groupMatches, teamMap, manualGroupPlacements);
+  const { outcomes, bracket } = recomputeTournament(groupMatches, teamMap, manualGroupPlacements, false);
 
   return {
     teamMap,
@@ -321,7 +321,7 @@ export const useTournamentStore = create(
             [groupId]: currentPlacement,
           };
 
-          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements);
+          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements, state.stageLocked);
           return { manualGroupPlacements, outcomes, bracket };
         });
       },
@@ -361,7 +361,7 @@ export const useTournamentStore = create(
             delete manualGroupPlacements[groupId];
           }
 
-          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements);
+          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements, state.stageLocked);
           return { manualGroupPlacements, outcomes, bracket };
         });
       },
@@ -374,7 +374,7 @@ export const useTournamentStore = create(
           const manualGroupPlacements = { ...state.manualGroupPlacements };
           delete manualGroupPlacements[groupId];
 
-          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements);
+          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements, state.stageLocked);
           return { manualGroupPlacements, outcomes, bracket };
         });
       },
@@ -385,7 +385,7 @@ export const useTournamentStore = create(
           if (!Object.keys(state.manualGroupPlacements || {}).length) return state;
 
           const manualGroupPlacements = {};
-          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements);
+          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, manualGroupPlacements, state.stageLocked);
           return { manualGroupPlacements, outcomes, bracket };
         });
       },
@@ -399,7 +399,7 @@ export const useTournamentStore = create(
           );
 
           const groupMatches = { ...state.groupMatches, [groupId]: updatedGroup };
-          const { outcomes, bracket } = recomputeTournament(groupMatches, state.teamMap, state.manualGroupPlacements);
+          const { outcomes, bracket } = recomputeTournament(groupMatches, state.teamMap, state.manualGroupPlacements, state.stageLocked);
 
           return { groupMatches, outcomes, bracket };
         });
@@ -419,13 +419,17 @@ export const useTournamentStore = create(
             })
           );
 
-          const { outcomes, bracket } = recomputeTournament(groupMatches, state.teamMap, state.manualGroupPlacements);
+          const { outcomes, bracket } = recomputeTournament(groupMatches, state.teamMap, state.manualGroupPlacements, state.stageLocked);
 
           return { groupMatches, outcomes, bracket };
         });
       },
 
-      lockGroupsAndStartKnockout: () => set({ stageLocked: true }),
+      lockGroupsAndStartKnockout: () =>
+        set((state) => {
+          const { outcomes, bracket } = recomputeTournament(state.groupMatches, state.teamMap, state.manualGroupPlacements, true);
+          return { stageLocked: true, outcomes, bracket };
+        }),
 
       setMatchTeam: (roundKey, matchIndex, slotKey, teamId) => {
         set((state) => {
@@ -541,11 +545,7 @@ export const useTournamentStore = create(
           const normalizedGroupMatches = normalizeGroupMatchesForHydration(merged.groupMatches);
 
           if (!merged.stageLocked) {
-            const { outcomes, bracket } = recomputeTournament(
-              normalizedGroupMatches,
-              current.teamMap,
-              merged.manualGroupPlacements || {}
-            );
+            const { outcomes, bracket } = recomputeTournament(normalizedGroupMatches, current.teamMap, merged.manualGroupPlacements || {}, false);
 
             return {
               ...merged,

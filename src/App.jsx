@@ -267,7 +267,7 @@ export default function App() {
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.home]?.code}.png`} alt={teamMap[match.home]?.name} loading="lazy" />
                       {teamMap[match.home]?.name}
                     </span>
-                    <span className="font-black text-[#334155] dark:text-[#D4D4D8]">vs</span>
+                    <span className="font-black text-[#334155] dark:text-[#D4D4D8]">contra</span>
                     <span className="flex items-center justify-end gap-2 text-right font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
                       {teamMap[match.away]?.name}
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.away]?.code}.png`} alt={teamMap[match.away]?.name} loading="lazy" />

@@ -600,6 +600,17 @@ export default function BracketView({
     }
   };
 
+  const handleResetMobileMatch = () => {
+    if (!mobileSheetMatch) return;
+
+    if (mobileSheetRoundKey === 'r32') {
+      onSetMatchTeam?.(mobileSheetRoundKey, mobileSheetMatchIndex, 'teamA', '');
+      onSetMatchTeam?.(mobileSheetRoundKey, mobileSheetMatchIndex, 'teamB', '');
+    }
+
+    onResetMatch?.(mobileSheetRoundKey, mobileSheetMatchIndex);
+  };
+
   const toggleRoundExpanded = (roundKey) => {
     setExpandedRounds((prev) => {
       const next = new Set(prev);
@@ -904,7 +915,7 @@ export default function BracketView({
               : 'border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
           }`}
         >
-          Auto-avance: {autoAdvanceEnabled ? 'ON' : 'OFF'}
+          Autoavance: {autoAdvanceEnabled ? 'Activado' : 'Desactivado'}
         </button>
         <button
           onClick={jumpToNextPendingMatch}
@@ -1132,7 +1143,7 @@ export default function BracketView({
             <div className="space-y-3">
               <div className="sticky top-2 z-20 rounded-xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="font-display text-xl text-[#2563EB] dark:text-[#FBBF24]">Knockout Stage</p>
+                  <p className="font-display text-xl text-[#2563EB] dark:text-[#FBBF24]">Fase eliminatoria</p>
                   <button
                     onClick={() => onBackToGroups?.()}
                     className="min-h-[44px] rounded-full border border-[#E2E8F0] bg-[#F1F5F9] px-3 py-1 text-xs text-[#475569] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#9CA3AF]"
@@ -1338,25 +1349,12 @@ export default function BracketView({
                   </select>
                 )}
 
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    className="min-h-[44px] rounded-xl border border-[#D97706] bg-[#F1F5F9] text-sm text-[#D97706] dark:border-[#F59E0B] dark:bg-[#1A2235] dark:text-[#F59E0B]"
-                    onClick={() => {
-                      if (!mobileSheetMatch.teamA || !mobileSheetMatch.teamB || mobileSheetMatch.winner) return;
-                      const candidates = [mobileSheetMatch.teamA, mobileSheetMatch.teamB];
-                      const winnerId = candidates[Math.floor(Math.random() * candidates.length)];
-                      handleWinnerSelection(mobileSheetRoundKey, mobileSheetMatchIndex, winnerId);
-                    }}
-                  >
-                    Simular
-                  </button>
-                  <button
-                    className="min-h-[44px] rounded-xl border border-[#E2E8F0] bg-[#F1F5F9] text-sm text-[#475569] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#9CA3AF]"
-                    onClick={() => onResetMatch?.(mobileSheetRoundKey, mobileSheetMatchIndex)}
-                  >
-                    Reiniciar
-                  </button>
-                </div>
+                <button
+                  className="mt-3 min-h-[44px] w-full rounded-xl border border-[#E2E8F0] bg-[#F1F5F9] text-sm text-[#475569] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#9CA3AF]"
+                  onClick={handleResetMobileMatch}
+                >
+                  Reiniciar
+                </button>
 
                 <button
                   className="mt-3 min-h-[44px] w-full rounded-xl border border-[#2563EB] bg-white text-sm text-[#2563EB] dark:border-[#3B82F6] dark:bg-[#141B2B] dark:text-[#3B82F6]"
