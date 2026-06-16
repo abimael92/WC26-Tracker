@@ -10,6 +10,7 @@ import {
   initialGroupMatches,
   simulateScore,
 } from '../lib/tournament';
+import { mapLiveScoresIntoMatches } from '../lib/liveScores';
 
 const teamMap = createTeamMap();
 
@@ -265,6 +266,7 @@ const baseState = () => {
     outcomes,
     bracket,
     stageLocked: false,
+    liveDataLocked: false,
     theme: 'dark',
   };
 };
@@ -277,6 +279,10 @@ export const useTournamentStore = create(
       setTheme: (theme) => set({ theme }),
 
       resetAll: () => {
+        if (get().liveDataLocked) {
+          return;
+        }
+
         if (typeof window !== 'undefined') {
           window.localStorage.removeItem('fifa-2026-simulator-v1');
         }
@@ -295,6 +301,7 @@ export const useTournamentStore = create(
             outcomes,
             bracket,
             stageLocked: false,
+            liveDataLocked: false,
             theme: 'dark',
           };
         });
@@ -302,7 +309,7 @@ export const useTournamentStore = create(
 
       setGroupPlacement: (groupId, teamId, place) => {
         set((state) => {
-          if (state.stageLocked) return state;
+          if (state.stageLocked || state.liveDataLocked) return state;
           if (!groupId || !teamId) return state;
 
           const normalizedPlace = Math.min(4, Math.max(1, Number(place) || 1));
@@ -328,7 +335,7 @@ export const useTournamentStore = create(
 
       toggleGroupPlacement: (groupId, teamId) => {
         set((state) => {
-          if (state.stageLocked) return state;
+          if (state.stageLocked || state.liveDataLocked) return state;
           if (!groupId || !teamId) return state;
 
           const currentPlacement = { ...(state.manualGroupPlacements[groupId] || {}) };
@@ -368,7 +375,7 @@ export const useTournamentStore = create(
 
       clearGroupPlacement: (groupId) => {
         set((state) => {
-          if (state.stageLocked) return state;
+          if (state.stageLocked || state.liveDataLocked) return state;
           if (!groupId || !state.manualGroupPlacements[groupId]) return state;
 
           const manualGroupPlacements = { ...state.manualGroupPlacements };
@@ -381,7 +388,7 @@ export const useTournamentStore = create(
 
       clearAllGroupPlacements: () => {
         set((state) => {
-          if (state.stageLocked) return state;
+          if (state.stageLocked || state.liveDataLocked) return state;
           if (!Object.keys(state.manualGroupPlacements || {}).length) return state;
 
           const manualGroupPlacements = {};
@@ -392,7 +399,7 @@ export const useTournamentStore = create(
 
       updateGroupMatch: (groupId, matchId, side, value) => {
         set((state) => {
-          if (state.stageLocked) return state;
+          if (state.stageLocked || state.liveDataLocked) return state;
           const nextValue = value === '' ? '' : Number.isFinite(Number(value)) ? Math.max(0, Math.min(9, Number(value))) : '';
           const updatedGroup = state.groupMatches[groupId].map((match) =>
             match.id === matchId ? { ...match, [side]: nextValue } : match
@@ -407,7 +414,7 @@ export const useTournamentStore = create(
 
       autoSimulateGroups: () => {
         set((state) => {
-          if (state.stageLocked) return state;
+          if (state.stageLocked || state.liveDataLocked) return state;
 
           const groupMatches = Object.fromEntries(
             GROUPS.map((group) => {
@@ -433,6 +440,7 @@ export const useTournamentStore = create(
 
       setMatchTeam: (roundKey, matchIndex, slotKey, teamId) => {
         set((state) => {
+          if (state.liveDataLocked) return state;
           const bracket = structuredClone(state.bracket);
           const round = bracket[roundKey];
           if (!round?.[matchIndex]) return state;
@@ -468,6 +476,7 @@ export const useTournamentStore = create(
 
       setWinner: (roundKey, matchIndex, winnerId) => {
         set((state) => {
+          if (state.liveDataLocked) return state;
           const bracket = structuredClone(state.bracket);
           const match = bracket[roundKey]?.[matchIndex];
           if (!match?.teamA || !match?.teamB) return state;
@@ -480,6 +489,7 @@ export const useTournamentStore = create(
 
       resetMatch: (roundKey, matchIndex) => {
         set((state) => {
+          if (state.liveDataLocked) return state;
           const bracket = structuredClone(state.bracket);
           const round = bracket[roundKey];
           if (!round?.[matchIndex]) return state;
@@ -516,12 +526,42 @@ export const useTournamentStore = create(
 
       autoSimulateRound: (roundKey) => {
         const state = get();
+        if (state.liveDataLocked) return;
         const roundMatches = state.bracket[roundKey];
         roundMatches.forEach((match, index) => {
           if (!match.teamA || !match.teamB || match.winner) return;
           const winner = chooseWinner(state.teamMap[match.teamA], state.teamMap[match.teamB]);
           get().setWinner(roundKey, index, winner);
         });
+      },
+
+      applyLiveScores: (liveScores = []) => {
+        let appliedCount = 0;
+
+        set((state) => {
+          if (state.stageLocked) return state;
+          if (!Array.isArray(liveScores) || !liveScores.length) return state;
+
+          const mapped = mapLiveScoresIntoMatches(state.groupMatches, state.teamMap, liveScores);
+          appliedCount = mapped.appliedCount;
+          if (!appliedCount) return state;
+
+          const { outcomes, bracket } = recomputeTournament(
+            mapped.nextGroupMatches,
+            state.teamMap,
+            state.manualGroupPlacements,
+            state.stageLocked
+          );
+
+          return {
+            groupMatches: mapped.nextGroupMatches,
+            outcomes,
+            bracket,
+            liveDataLocked: true,
+          };
+        });
+
+        return appliedCount;
       },
     }),
     {
@@ -532,6 +572,7 @@ export const useTournamentStore = create(
         outcomes: state.outcomes,
         bracket: state.bracket,
         stageLocked: state.stageLocked,
+        liveDataLocked: state.liveDataLocked,
         theme: state.theme,
       }),
       merge: (persisted, current) => ({

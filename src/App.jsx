@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import html2canvas from 'html2canvas';
 import bracketThemeSong from './assets/WorldCup26 Bracket Theme.mp3';
 import BracketView from './components/BracketView';
 import ChampionOverlay from './components/ChampionOverlay';
 import GroupStage from './components/GroupStage';
+import { fetchLiveScores, saveGroupMatchesToFirebase, seedProvidedScoresIfNeeded } from './lib/liveScores';
 import { getGroupMatchScheduleById } from './lib/schedule';
 import { useTournamentStore } from './store/useTournamentStore';
 
@@ -33,6 +33,7 @@ export default function App() {
     outcomes,
     bracket,
     stageLocked,
+    liveDataLocked,
     updateGroupMatch,
     toggleGroupPlacement,
     clearGroupPlacement,
@@ -42,6 +43,7 @@ export default function App() {
     setWinner,
     resetMatch,
     resetAll,
+    applyLiveScores,
   } = useTournamentStore();
 
   const [showChampion, setShowChampion] = useState(false);
@@ -49,6 +51,7 @@ export default function App() {
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
   const bgmAudioRef = useRef(null);
   const [bgmEnabled, setBgmEnabled] = useState(false);
+  const [isSavingScores, setIsSavingScores] = useState(false);
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === 'undefined') return 'groups';
     const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
@@ -59,6 +62,34 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, activeSection);
   }, [activeSection]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncLiveScores = async () => {
+      try {
+        await seedProvidedScoresIfNeeded();
+        const liveScores = await fetchLiveScores();
+        if (cancelled || !liveScores.length) return;
+        applyLiveScores(liveScores);
+      } catch (error) {
+        console.warn('No se pudieron sincronizar marcadores desde Firebase.', error);
+      }
+    };
+
+    syncLiveScores();
+
+    const unsubscribeHydration = useTournamentStore.persist?.onFinishHydration?.(() => {
+      syncLiveScores();
+    });
+
+    return () => {
+      cancelled = true;
+      if (typeof unsubscribeHydration === 'function') {
+        unsubscribeHydration();
+      }
+    };
+  }, [applyLiveScores]);
 
   useEffect(() => {
     const audio = bgmAudioRef.current;
@@ -201,14 +232,18 @@ export default function App() {
     }
   };
 
-  const exportBracketImage = async () => {
-    const node = document.getElementById('capture-root');
-    if (!node) return;
-    const canvas = await html2canvas(node, { backgroundColor: null });
-    const link = document.createElement('a');
-    link.download = 'fifa-2026-bracket.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+  const handleSaveLiveData = async () => {
+    setIsSavingScores(true);
+    try {
+      const savedCount = await saveGroupMatchesToFirebase(groupMatches, teamMap);
+      if (!savedCount) return;
+      const liveScores = await fetchLiveScores();
+      applyLiveScores(liveScores);
+    } catch (error) {
+      console.warn('No se pudieron guardar los marcadores en Firebase.', error);
+    } finally {
+      setIsSavingScores(false);
+    }
   };
 
   const rootTheme = 'theme-dark dark';
@@ -235,18 +270,24 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <button
                 onClick={autoSimulateGroups}
+                disabled={liveDataLocked}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
                 Simular grupos automáticamente
               </button>
-              <button onClick={resetAll} className="rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]">
+              <button
+                onClick={resetAll}
+                disabled={liveDataLocked}
+                className="rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-[#1F2937] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]"
+              >
                 Reiniciar
               </button>
               <button
-                onClick={exportBracketImage}
+                onClick={handleSaveLiveData}
+                disabled={isSavingScores || liveDataLocked}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
-                Compartir como imagen
+                {isSavingScores ? 'Guardando...' : 'Guardar datos'}
               </button>
             </div>
           </div>
@@ -267,7 +308,7 @@ export default function App() {
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.home]?.code}.png`} alt={teamMap[match.home]?.name} loading="lazy" />
                       {teamMap[match.home]?.name}
                     </span>
-                    <span className="font-black text-[#334155] dark:text-[#D4D4D8]">contra</span>
+                    <span className="font-black text-[#334155] dark:text-[#D4D4D8]">vd</span>
                     <span className="flex items-center justify-end gap-2 text-right font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
                       {teamMap[match.away]?.name}
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.away]?.code}.png`} alt={teamMap[match.away]?.name} loading="lazy" />
@@ -348,7 +389,7 @@ export default function App() {
                     teamMap={teamMap}
                     groupMatches={groupMatches}
                     outcomes={outcomes}
-                    stageLocked={stageLocked}
+                    stageLocked={stageLocked || liveDataLocked}
                     onScoreChange={updateGroupMatch}
                     manualGroupPlacements={manualGroupPlacements}
                     onToggleGroupPlacement={toggleGroupPlacement}
