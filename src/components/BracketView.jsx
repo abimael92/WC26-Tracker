@@ -5,8 +5,6 @@ import { getAllScheduleRows, getMatchSchedule, formatMatchScheduleLocal } from '
 import { RUNNER_OPPONENT_RULES, THIRD_TO_WINNER_RULES, WINNER_THIRD_RULES } from '../lib/tournament';
 import TeamPill from './TeamPill';
 
-const sideRoundOrder = ['r32', 'r16', 'qf', 'sf'];
-const compactRoundOrder = ['r32', 'r16', 'qf', 'sf', 'final', 'third'];
 const LEFT_COLUMN_BY_ROUND = {
   r32: 1,
   r16: 2,
@@ -52,7 +50,7 @@ const colorLegend = {
 };
 
 const MOBILE_BRACKET_VIEW_STORAGE_KEY = 'fifa-mobile-bracket-view';
-const MOBILE_ROUND_FOCUS_STORAGE_KEY = 'fifa-mobile-round-focus';
+const MOBILE_ROUND_TAB_STORAGE_KEY = 'fifa-mobile-round-tab';
 const ROUND_PROGRESS_ORDER = ['r32', 'r16', 'qf', 'sf', 'final'];
 const ROUND_BADGE_CLASSES = {
   r32: 'border-[#0EA5E9]/35 bg-[#E0F2FE] text-[#0369A1] dark:border-[#38BDF8]/40 dark:bg-[#08273A] dark:text-[#7DD3FC]',
@@ -412,12 +410,11 @@ export default function BracketView({
   const [autoAdvanceEnabled, setAutoAdvanceEnabled] = useState(true);
   const [pendingAutoAdvance, setPendingAutoAdvance] = useState(null);
   const [bracketZoom, setBracketZoom] = useState(1);
-  const [mobileRoundFocus, setMobileRoundFocus] = useState(() => {
-    if (typeof window === 'undefined') return 'all';
-    const saved = window.localStorage.getItem(MOBILE_ROUND_FOCUS_STORAGE_KEY);
-    return ['all', 'r16', 'qf', 'sf'].includes(saved) ? saved : 'all';
+  const [mobileRoundTab, setMobileRoundTab] = useState(() => {
+    if (typeof window === 'undefined') return 'r32';
+    const saved = window.localStorage.getItem(MOBILE_ROUND_TAB_STORAGE_KEY);
+    return ['r32', 'r16', 'qf', 'sf', 'final', 'third'].includes(saved) ? saved : 'r32';
   });
-  const [mobileSideTab, setMobileSideTab] = useState('left');
   const [scheduleRoundFilter, setScheduleRoundFilter] = useState('all');
   const bracketScrollRef = useRef(null);
   const bracketCanvasRef = useRef(null);
@@ -457,26 +454,52 @@ export default function BracketView({
     };
   }, [mobileSheetMatch, mobileSheetRoundKey, mobileSheetMatchIndex]);
 
+  const allTeamsSorted = useMemo(() => Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es')), [teamMap]);
+
+  const mobileSheetOptions = useMemo(() => {
+    const showSeedTemplate = mobileSheetRoundKey === 'r32';
+    if (!mobileSheetMatch || !showSeedTemplate) {
+      return { showSeedTemplate, optionTeamsA: [], optionTeamsB: [] };
+    }
+
+    const candidateIdsA = getSlotCandidateIds(mobileSheetMatch.slotA, outcomes);
+    const candidateIdsB = getSlotCandidateIds(mobileSheetMatch.slotB, outcomes);
+    const roundMatches = bracket[mobileSheetRoundKey] || [];
+    const selectedIdsInRound = new Set(roundMatches.flatMap((item) => [item.teamA, item.teamB]).filter(Boolean));
+    const blockedForA = new Set(selectedIdsInRound);
+    blockedForA.delete(mobileSheetMatch.teamA);
+    const blockedForB = new Set(selectedIdsInRound);
+    blockedForB.delete(mobileSheetMatch.teamB);
+
+    const optionTeamsA = (candidateIdsA.length ? candidateIdsA.map((id) => teamMap[id]).filter(Boolean) : allTeamsSorted)
+      .filter((team) => !blockedForA.has(team.id))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+    const optionTeamsB = (candidateIdsB.length ? candidateIdsB.map((id) => teamMap[id]).filter(Boolean) : allTeamsSorted)
+      .filter((team) => !blockedForB.has(team.id))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+    return { showSeedTemplate, optionTeamsA, optionTeamsB };
+  }, [allTeamsSorted, bracket, mobileSheetMatch, mobileSheetRoundKey, outcomes, teamMap]);
+
   const allScheduleRows = useMemo(() => getAllScheduleRows(), []);
 
   const mobileRoundMeta = useMemo(
     () => [
-      { key: 'r32', label: 'RO32', fullLabel: ROUND_LABELS.r32 },
-      { key: 'r16', label: 'R16', fullLabel: ROUND_LABELS.r16 },
-      { key: 'qf', label: 'QF', fullLabel: ROUND_LABELS.qf },
-      { key: 'sf', label: 'SF', fullLabel: ROUND_LABELS.sf },
-      { key: 'final', label: 'F', fullLabel: ROUND_LABELS.final },
+      { key: 'r32', label: '16avos', fullLabel: ROUND_LABELS.r32 },
+      { key: 'r16', label: 'Octavos', fullLabel: ROUND_LABELS.r16 },
+      { key: 'qf', label: 'Cuartos', fullLabel: ROUND_LABELS.qf },
+      { key: 'sf', label: 'Semis', fullLabel: ROUND_LABELS.sf },
+      { key: 'final', label: 'Final', fullLabel: ROUND_LABELS.final },
       { key: 'third', label: '3°', fullLabel: ROUND_LABELS.third },
     ],
     []
   );
 
-  const mobileVisibleRoundMeta = useMemo(() => {
-    if (mobileSideTab === 'center') {
-      return mobileRoundMeta.filter((round) => ['final', 'third'].includes(round.key));
-    }
-    return mobileRoundMeta.filter((round) => !['final', 'third'].includes(round.key));
-  }, [mobileRoundMeta, mobileSideTab]);
+  const activeMobileRoundKey = useMemo(
+    () => (mobileRoundMeta.some((round) => round.key === mobileRoundTab) ? mobileRoundTab : 'r32'),
+    [mobileRoundMeta, mobileRoundTab]
+  );
 
   const getScheduleText = (roundKey, index) => {
     const schedule = getMatchSchedule(roundKey, index);
@@ -533,16 +556,6 @@ export default function BracketView({
   );
 
   const scheduleFilterLabel = scheduleRoundFilter === 'all' ? 'Todas las rondas' : ROUND_LABELS[scheduleRoundFilter] || scheduleRoundFilter;
-  const mobileFocusLabel =
-    mobileRoundFocus === 'all'
-      ? 'Todas'
-      : mobileRoundFocus === 'r16'
-        ? 'Octavos'
-        : mobileRoundFocus === 'qf'
-          ? 'Cuartos'
-          : mobileRoundFocus === 'sf'
-            ? 'Semis'
-            : mobileRoundFocus;
 
   const getRoundBadgeClass = (roundKey) => ROUND_BADGE_CLASSES[roundKey] || ROUND_BADGE_CLASSES.r16;
 
@@ -594,12 +607,6 @@ export default function BracketView({
       else next.add(roundKey);
       return next;
     });
-  };
-
-  const scrollToMobileRound = (roundKey) => {
-    const target = document.getElementById(`mobile-round-${roundKey}`);
-    if (!target) return;
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const getSideMatches = (roundKey, side) => {
@@ -764,10 +771,7 @@ export default function BracketView({
       if (index !== -1) {
         const match = matches[index];
         activateMatch(match, roundKey, index);
-        if (isMobile && mobileViewMode === 'list') {
-          setMobileRoundFocus('all');
-          scrollToMobileRound(roundKey);
-        }
+        if (isMobile && mobileViewMode === 'list') setMobileRoundTab(roundKey);
         return;
       }
     }
@@ -824,8 +828,8 @@ export default function BracketView({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(MOBILE_ROUND_FOCUS_STORAGE_KEY, mobileRoundFocus);
-  }, [mobileRoundFocus]);
+    window.localStorage.setItem(MOBILE_ROUND_TAB_STORAGE_KEY, mobileRoundTab);
+  }, [mobileRoundTab]);
 
   useEffect(() => {
     if (!pendingAutoAdvance) return;
@@ -837,9 +841,7 @@ export default function BracketView({
     }
 
     activateMatch(nextMatch, pendingAutoAdvance.roundKey, pendingAutoAdvance.index);
-    if (isMobile && mobileViewMode === 'list') {
-      scrollToMobileRound(pendingAutoAdvance.roundKey);
-    }
+    if (isMobile && mobileViewMode === 'list') setMobileRoundTab(pendingAutoAdvance.roundKey);
 
     setPendingAutoAdvance(null);
   }, [pendingAutoAdvance, bracket, isMobile, mobileViewMode]);
@@ -1140,75 +1142,20 @@ export default function BracketView({
                 </div>
 
                 <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                  {mobileVisibleRoundMeta.map((round) => (
+                  {mobileRoundMeta.map((round) => (
                     <button
-                      key={`jump-${round.key}`}
-                      onClick={() => scrollToMobileRound(round.key)}
-                      className="min-h-[44px] rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-xs font-semibold text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]"
+                      key={`round-tab-${round.key}`}
+                      onClick={() => setMobileRoundTab(round.key)}
+                      className={`min-h-[44px] rounded-full border px-3 text-xs font-semibold transition-colors ${
+                        activeMobileRoundKey === round.key
+                          ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
+                          : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]'
+                      }`}
                     >
                       {round.label}
                     </button>
                   ))}
                 </div>
-
-                <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                  {[
-                    { key: 'left', label: 'Lado izquierdo' },
-                    { key: 'center', label: 'Centro' },
-                    { key: 'right', label: 'Lado derecho' },
-                  ].map((option) => (
-                    <button
-                      key={`side-${option.key}`}
-                      onClick={() => {
-                        setMobileSideTab(option.key);
-                        setMobileRoundFocus('all');
-                      }}
-                      className={`min-h-[40px] rounded-full border px-3 text-xs font-semibold transition-colors ${
-                        mobileSideTab === option.key
-                          ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
-                          : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                  {[
-                    { key: 'all', label: 'Todas' },
-                    { key: 'r16', label: 'Octavos' },
-                    { key: 'qf', label: 'Cuartos' },
-                    { key: 'sf', label: 'Semis' },
-                  ].map((option) => (
-                    <button
-                      key={`focus-${option.key}`}
-                      onClick={() => setMobileRoundFocus(option.key)}
-                      className={`min-h-[40px] rounded-full border px-3 text-xs font-semibold transition-colors ${
-                        mobileRoundFocus === option.key
-                          ? 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]'
-                          : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#2563EB] dark:border-[#1F2937] dark:bg-[#1A2235] dark:text-[#3B82F6]'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
-                {mobileRoundFocus !== 'all' && (
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="rounded-full border border-[#2563EB] bg-[#DBEAFE] px-2.5 py-1 text-[11px] font-semibold text-[#1E3A8A] dark:border-[#3B82F6]/50 dark:bg-[#1A2740] dark:text-[#8FB4FF]">
-                      Vista: {mobileFocusLabel}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setMobileRoundFocus('all')}
-                      className="rounded-full border border-[#CBD5E1] bg-white px-2 py-1 text-[10px] font-semibold text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
-                    >
-                      Quitar filtro
-                    </button>
-                  </div>
-                )}
 
                 <div className="h-2 w-full rounded-full bg-[#F1F5F9] dark:bg-[#1A2235]">
                   <div className="h-2 rounded-full bg-[#2563EB] dark:bg-[#3B82F6]" style={{ width: `${totalCompletion}%` }} />
@@ -1218,19 +1165,9 @@ export default function BracketView({
                 </p>
               </div>
 
-              {compactRoundOrder.map((roundKey) => {
-                if (mobileRoundFocus !== 'all' && roundKey !== mobileRoundFocus) return null;
-                const roundMatches = bracket[roundKey] || [];
-                const isCenterRound = roundKey === 'final' || roundKey === 'third';
-                const isSideRound = sideRoundOrder.includes(roundKey);
-
-                if (mobileSideTab === 'center' && !isCenterRound) return null;
-                if (mobileSideTab !== 'center' && isCenterRound) return null;
-
-                const roundEntries = isSideRound
-                  ? getSideMatches(roundKey, mobileSideTab).map(({ match, sourceIndex }) => ({ match, sourceIndex }))
-                  : roundMatches.map((match, sourceIndex) => ({ match, sourceIndex }));
-
+              {(() => {
+                const roundKey = activeMobileRoundKey;
+                const roundEntries = (bracket[roundKey] || []).map((match, sourceIndex) => ({ match, sourceIndex }));
                 if (!roundEntries.length) return null;
                 const isExpanded = expandedRounds.has(roundKey);
                 const completion = getRoundCompletion(roundKey);
@@ -1239,7 +1176,7 @@ export default function BracketView({
                 const isCollapsed = roundEntries.length > 6 && !isExpanded;
 
                 return (
-                  <div id={`mobile-round-${roundKey}`} key={`compact-${roundKey}`} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
+                  <div key={`compact-${roundKey}`} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
                     <div className="mb-2 flex items-center justify-between border-b border-[#E2E8F0] pb-2 dark:border-[#1F2937]">
                       <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getRoundBadgeClass(roundKey)}`}>{ROUND_LABELS[roundKey]}</span>
                       <span className="text-[11px] text-[#475569] dark:text-[#9CA3AF]">{completion}% ({progress.completed}/{progress.total})</span>
@@ -1327,14 +1264,14 @@ export default function BracketView({
                     </div>
                   </div>
                 );
-              })}
+              })()}
             </div>
           )}
 
           {showMobileMatchSheet && mobileSheetMatch && (
             <div className="fixed inset-0 z-40 flex items-end bg-[rgba(11,15,28,0.45)] p-3 md:hidden" onClick={() => setShowMobileMatchSheet(false)}>
               <div
-                className="w-full rounded-t-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]"
+                className="max-h-[88vh] w-full overflow-y-auto rounded-t-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="mb-3 h-1.5 w-14 rounded-full bg-[#E2E8F0] dark:bg-[#1F2937]" />
@@ -1350,10 +1287,44 @@ export default function BracketView({
                   </p>
                 )}
 
-                <div className="mt-3 space-y-2">
-                  <TeamPill team={mobileSheetMatch.teamA ? teamMap[mobileSheetMatch.teamA] : null} />
-                  <TeamPill team={mobileSheetMatch.teamB ? teamMap[mobileSheetMatch.teamB] : null} />
-                </div>
+                {mobileSheetOptions.showSeedTemplate ? (
+                  <div className="mt-3 space-y-2">
+                    <select
+                      className="min-h-[44px] w-full rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                      value={mobileSheetMatch.teamA || ''}
+                      onChange={(e) => onSetMatchTeam?.(mobileSheetRoundKey, mobileSheetMatchIndex, 'teamA', e.target.value)}
+                    >
+                      <option value="">{formatSeedSlot(mobileSheetMatch.slotA)}</option>
+                      {mobileSheetOptions.optionTeamsA.map((team) => (
+                        <option key={team.id} value={team.id} disabled={team.id === mobileSheetMatch.teamB}>
+                          {team.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">{formatSlotRuleHint(mobileSheetMatch.slotA)}</p>
+                    <TeamPill team={mobileSheetMatch.teamA ? teamMap[mobileSheetMatch.teamA] : null} />
+
+                    <select
+                      className="min-h-[44px] w-full rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                      value={mobileSheetMatch.teamB || ''}
+                      onChange={(e) => onSetMatchTeam?.(mobileSheetRoundKey, mobileSheetMatchIndex, 'teamB', e.target.value)}
+                    >
+                      <option value="">{formatSeedSlot(mobileSheetMatch.slotB)}</option>
+                      {mobileSheetOptions.optionTeamsB.map((team) => (
+                        <option key={team.id} value={team.id} disabled={team.id === mobileSheetMatch.teamA}>
+                          {team.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">{formatSlotRuleHint(mobileSheetMatch.slotB)}</p>
+                    <TeamPill team={mobileSheetMatch.teamB ? teamMap[mobileSheetMatch.teamB] : null} />
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    <TeamPill team={mobileSheetMatch.teamA ? teamMap[mobileSheetMatch.teamA] : null} />
+                    <TeamPill team={mobileSheetMatch.teamB ? teamMap[mobileSheetMatch.teamB] : null} />
+                  </div>
+                )}
 
                 {mobileSheetMatch.teamA && mobileSheetMatch.teamB && (
                   <select
