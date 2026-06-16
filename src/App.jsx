@@ -57,8 +57,8 @@ export default function App() {
   const [liveSyncMessage, setLiveSyncMessage] = useState('');
   const [liveScoresFeed, setLiveScoresFeed] = useState([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [selectedFixtureKey, setSelectedFixtureKey] = useState('');
   const [saveForm, setSaveForm] = useState({
-    matchId: '',
     group: '',
     homeTeam: '',
     awayTeam: '',
@@ -90,6 +90,74 @@ export default function App() {
     } finally {
       window.clearTimeout(timeoutId);
     }
+  };
+
+  const normalizeName = (value) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+  const toFlagEmoji = (countryCode) => {
+    const code = String(countryCode || '').trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code)) return '🏳️';
+    return String.fromCodePoint(...[...code].map((char) => 127397 + char.charCodeAt(0)));
+  };
+
+  const numericInput = (value) => String(value || '').replace(/[^0-9]/g, '');
+
+  const detectMatchId = ({ group, homeTeam, awayTeam, selectedFixture }) => {
+    const normalizedGroup = String(group || '').trim().toUpperCase();
+    const normalizedHome = normalizeName(homeTeam);
+    const normalizedAway = normalizeName(awayTeam);
+
+    const fromLiveFeed = liveScoresFeed.find((entry) => {
+      const entryGroup = String(entry?.group || '').trim().toUpperCase();
+      const entryHome = normalizeName(entry?.homeTeam);
+      const entryAway = normalizeName(entry?.awayTeam);
+      return (
+        entryGroup === normalizedGroup &&
+        ((entryHome === normalizedHome && entryAway === normalizedAway) ||
+          (entryHome === normalizedAway && entryAway === normalizedHome))
+      );
+    });
+
+    if (Number.isFinite(Number(fromLiveFeed?.matchId))) {
+      return Number(fromLiveFeed.matchId);
+    }
+
+    const fromFixture = fixtureOptions.find((fixture) => {
+      if (fixture.groupId !== normalizedGroup) return false;
+      const fixtureHome = normalizeName(fixture.homeName);
+      const fixtureAway = normalizeName(fixture.awayName);
+      return (
+        (fixtureHome === normalizedHome && fixtureAway === normalizedAway) ||
+        (fixtureHome === normalizedAway && fixtureAway === normalizedHome)
+      );
+    });
+
+    if (selectedFixture && Number.isFinite(Number(selectedFixture.scheduleMatchNumber))) {
+      return Number(selectedFixture.scheduleMatchNumber);
+    }
+
+    if (fromFixture && Number.isFinite(Number(fromFixture.scheduleMatchNumber))) {
+      return Number(fromFixture.scheduleMatchNumber);
+    }
+
+    return null;
+  };
+
+  const applyFixtureToSaveForm = (fixture) => {
+    if (!fixture) return;
+    setSaveForm((prev) => ({
+      ...prev,
+      group: fixture.groupId || prev.group,
+      homeTeam: fixture.homeName || prev.homeTeam,
+      awayTeam: fixture.awayName || prev.awayTeam,
+      homeScore: fixture.homeGoals === '' ? prev.homeScore : String(fixture.homeGoals),
+      awayScore: fixture.awayGoals === '' ? prev.awayScore : String(fixture.awayGoals),
+    }));
   };
 
   const logLiveScoresSnapshot = (liveScores, appliedCount) => {
@@ -201,9 +269,59 @@ export default function App() {
   }, [bgmEnabled]);
 
   const flattenedMatches = useMemo(
-    () => Object.entries(groupMatches).flatMap(([groupId, matches]) => matches.map((match) => ({ ...match, groupId }))),
+    () => Object.entries(groupMatches).flatMap(([groupId, matches]) => matches.map((match, groupMatchIndex) => ({ ...match, groupId, groupMatchIndex }))),
     [groupMatches]
   );
+
+  const fixtureOptions = useMemo(
+    () =>
+      flattenedMatches.map((match) => ({
+        scheduleEntry: getGroupMatchScheduleById(match.id),
+        ...match,
+        fixtureKey: `${match.groupId}-${match.groupMatchIndex}`,
+        homeName: teamMap[match.home]?.name || match.home,
+        awayName: teamMap[match.away]?.name || match.away,
+        homeFlag: toFlagEmoji(teamMap[match.home]?.code),
+        awayFlag: toFlagEmoji(teamMap[match.away]?.code),
+        scheduleMatchNumber: Number.isFinite(Number(getGroupMatchScheduleById(match.id)?.matchNumber))
+          ? Number(getGroupMatchScheduleById(match.id).matchNumber)
+          : null,
+        isPlayed: match.homeGoals !== '' && match.awayGoals !== '',
+      })),
+    [flattenedMatches, teamMap]
+  );
+
+  const selectableFixtureOptions = useMemo(() => {
+    const isSavedInDb = (fixture) =>
+      liveScoresFeed.some((entry) => {
+        const entryGroup = String(entry?.group || '').trim().toUpperCase();
+        if (entryGroup !== fixture.groupId) return false;
+
+        const entryHome = normalizeName(entry?.homeTeam);
+        const entryAway = normalizeName(entry?.awayTeam);
+        const fixtureHome = normalizeName(fixture.homeName);
+        const fixtureAway = normalizeName(fixture.awayName);
+
+        const samePair =
+          (entryHome === fixtureHome && entryAway === fixtureAway) ||
+          (entryHome === fixtureAway && entryAway === fixtureHome);
+
+        if (!samePair) return false;
+
+        return Number.isFinite(Number(entry?.homeScore)) && Number.isFinite(Number(entry?.awayScore));
+      });
+
+    return fixtureOptions.filter((fixture) => !fixture.isPlayed && !isSavedInDb(fixture));
+  }, [fixtureOptions, liveScoresFeed]);
+
+  const hasPendingFixtures = selectableFixtureOptions.length > 0;
+  const selectedFixtureForSave = selectableFixtureOptions.find((fixture) => fixture.fixtureKey === selectedFixtureKey) || null;
+  const autoDetectedMatchId = detectMatchId({
+    group: saveForm.group,
+    homeTeam: saveForm.homeTeam,
+    awayTeam: saveForm.awayTeam,
+    selectedFixture: selectedFixtureForSave,
+  });
 
   const upcomingMatches = useMemo(() => {
     const now = new Date();
@@ -345,7 +463,8 @@ export default function App() {
       applyLiveScores(liveScores);
       setLiveSyncMessage(`Partido ${entry.matchId} guardado en Firebase.`);
       setIsSaveModalOpen(false);
-      setSaveForm({ matchId: '', group: '', homeTeam: '', awayTeam: '', homeScore: '', awayScore: '', status: 'FT' });
+      setSaveForm({ group: '', homeTeam: '', awayTeam: '', homeScore: '', awayScore: '', status: 'FT' });
+      setSelectedFixtureKey('');
       setGoalRows([{ team: '', player: '', minute: '' }]);
     } catch (error) {
       console.warn('No se pudieron guardar los marcadores en Firebase.', error);
@@ -358,15 +477,15 @@ export default function App() {
   const handleSaveModalSubmit = (event) => {
     event.preventDefault();
 
-    const matchId = Number(saveForm.matchId);
     const homeScore = Number(saveForm.homeScore);
     const awayScore = Number(saveForm.awayScore);
     const group = saveForm.group.trim().toUpperCase();
     const homeTeam = saveForm.homeTeam.trim();
     const awayTeam = saveForm.awayTeam.trim();
+    const matchId = autoDetectedMatchId;
 
     if (!Number.isFinite(matchId) || matchId <= 0) {
-      setSaveModalError('El ID del partido debe ser un número válido.');
+      setSaveModalError('No se pudo detectar el partido. Elige un partido de la lista.');
       return;
     }
 
@@ -460,7 +579,18 @@ export default function App() {
                 {isSyncingScores ? 'Actualizando...' : isLiveDataUpdated ? 'Actualizados' : 'Actualizar'}
               </button>
               <button
-                onClick={() => setIsSaveModalOpen(true)}
+                onClick={() => {
+                  setIsSaveModalOpen(true);
+                  setSaveModalError('');
+                  const firstFixture = selectableFixtureOptions[0];
+                  if (!firstFixture) {
+                    setSelectedFixtureKey('');
+                    setSaveModalError('No hay partidos pendientes por guardar.');
+                    return;
+                  }
+                  setSelectedFixtureKey(firstFixture.fixtureKey);
+                  applyFixtureToSaveForm(firstFixture);
+                }}
                 disabled={isSavingScores}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
@@ -648,7 +778,7 @@ export default function App() {
 
       {isSaveModalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#020617]/70 px-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-[#25324A] bg-[#0F172A] p-5 shadow-[0_20px_50px_rgba(2,6,23,0.6)]">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border border-[#25324A] bg-[#0F172A] p-5 shadow-[0_20px_50px_rgba(2,6,23,0.6)] md:p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8FB4FF]">Subir resultado</p>
@@ -669,69 +799,122 @@ export default function App() {
 
             <form onSubmit={handleSaveModalSubmit} className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">ID partido *</span>
-                  <input
-                    value={saveForm.matchId}
-                    onChange={(e) => setSaveForm((prev) => ({ ...prev, matchId: e.target.value }))}
-                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                    placeholder="17"
-                    inputMode="numeric"
-                  />
+                <label className="block md:col-span-2">
+                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Partido jugado</span>
+                  <select
+                    value={selectedFixtureKey}
+                    onChange={(e) => {
+                      const key = e.target.value;
+                      setSelectedFixtureKey(key);
+                      const fixture = selectableFixtureOptions.find((item) => item.fixtureKey === key);
+                      applyFixtureToSaveForm(fixture);
+                    }}
+                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                  >
+                    {selectableFixtureOptions.length ? (
+                      selectableFixtureOptions.map((fixture) => (
+                        <option key={fixture.fixtureKey} value={fixture.fixtureKey}>
+                          {`Grupo ${fixture.groupId} · ${fixture.homeFlag} ${fixture.homeName} vs. ${fixture.awayFlag} ${fixture.awayName}`}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">Sin partidos pendientes</option>
+                    )}
+                  </select>
                 </label>
 
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Grupo *</span>
-                  <input
-                    value={saveForm.group}
-                    onChange={(e) => setSaveForm((prev) => ({ ...prev, group: e.target.value }))}
-                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                    placeholder="I"
-                    maxLength={2}
-                  />
-                </label>
+                <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Match ID</span>
+                    <input
+                      value={Number.isFinite(autoDetectedMatchId) ? String(autoDetectedMatchId) : 'Sin detectar'}
+                      readOnly
+                      className="w-full rounded-xl border border-[#2E3B52] bg-[#0B1425] px-3 py-2 text-sm font-semibold text-[#D4D4D8]"
+                    />
+                  </label>
 
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Equipo local *</span>
-                  <input
-                    value={saveForm.homeTeam}
-                    onChange={(e) => setSaveForm((prev) => ({ ...prev, homeTeam: e.target.value }))}
-                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                    placeholder="France"
-                  />
-                </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Grupo *</span>
+                    <select
+                      value={saveForm.group}
+                      onChange={(e) => setSaveForm((prev) => ({ ...prev, group: e.target.value }))}
+                      className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                    >
+                      <option value="">Selecciona grupo</option>
+                      {'ABCDEFGHIJKL'.split('').map((groupCode) => (
+                        <option key={`group-${groupCode}`} value={groupCode}>
+                          {`Grupo ${groupCode}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
 
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Equipo visitante *</span>
-                  <input
-                    value={saveForm.awayTeam}
-                    onChange={(e) => setSaveForm((prev) => ({ ...prev, awayTeam: e.target.value }))}
-                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                    placeholder="Senegal"
-                  />
-                </label>
+                <div className="block md:col-span-2 space-y-3">
+                  <div className="grid gap-3 md:grid-cols-12">
+                    <label className="block md:col-span-10">
+                      <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Equipo local *</span>
+                      <select
+                        value={saveForm.homeTeam}
+                        onChange={(e) => setSaveForm((prev) => ({ ...prev, homeTeam: e.target.value }))}
+                        className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                      >
+                        <option value="">Selecciona equipo local</option>
+                        {searchableTeams.map((team) => (
+                          <option key={`home-${team.id}`} value={team.name}>
+                            {`${toFlagEmoji(team.code)} ${team.name}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Goles local *</span>
-                  <input
-                    value={saveForm.homeScore}
-                    onChange={(e) => setSaveForm((prev) => ({ ...prev, homeScore: e.target.value }))}
-                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                    placeholder="3"
-                    inputMode="numeric"
-                  />
-                </label>
+                    <label className="block md:col-span-2">
+                      <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Goles local *</span>
+                      <input
+                        value={saveForm.homeScore}
+                        onChange={(e) => setSaveForm((prev) => ({ ...prev, homeScore: numericInput(e.target.value) }))}
+                        className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                        placeholder="3"
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                      />
+                    </label>
+                  </div>
 
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Goles visitante *</span>
-                  <input
-                    value={saveForm.awayScore}
-                    onChange={(e) => setSaveForm((prev) => ({ ...prev, awayScore: e.target.value }))}
-                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                    placeholder="1"
-                    inputMode="numeric"
-                  />
-                </label>
+                  <div className="grid gap-3 md:grid-cols-12">
+                    <label className="block md:col-span-10">
+                      <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Equipo visitante *</span>
+                      <select
+                        value={saveForm.awayTeam}
+                        onChange={(e) => setSaveForm((prev) => ({ ...prev, awayTeam: e.target.value }))}
+                        className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                      >
+                        <option value="">Selecciona equipo visitante</option>
+                        {searchableTeams.map((team) => (
+                          <option key={`away-${team.id}`} value={team.name}>
+                            {`${toFlagEmoji(team.code)} ${team.name}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block md:col-span-2">
+                      <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Goles visitante *</span>
+                      <input
+                        value={saveForm.awayScore}
+                        onChange={(e) => setSaveForm((prev) => ({ ...prev, awayScore: numericInput(e.target.value) }))}
+                        className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                        placeholder="1"
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] p-3">
@@ -749,12 +932,15 @@ export default function App() {
                 <div className="space-y-2">
                   {goalRows.map((row, index) => (
                     <div key={`goal-row-${index}`} className="grid grid-cols-12 gap-2">
-                      <input
+                      <select
                         value={row.team}
                         onChange={(e) => updateGoalRow(index, 'team', e.target.value)}
                         className="col-span-4 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2 py-1.5 text-xs text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                        placeholder="Equipo"
-                      />
+                      >
+                        <option value="">Equipo</option>
+                        {saveForm.homeTeam ? <option value={saveForm.homeTeam}>{saveForm.homeTeam}</option> : null}
+                        {saveForm.awayTeam ? <option value={saveForm.awayTeam}>{saveForm.awayTeam}</option> : null}
+                      </select>
                       <input
                         value={row.player}
                         onChange={(e) => updateGoalRow(index, 'player', e.target.value)}
@@ -763,9 +949,12 @@ export default function App() {
                       />
                       <input
                         value={row.minute}
-                        onChange={(e) => updateGoalRow(index, 'minute', e.target.value)}
+                        onChange={(e) => updateGoalRow(index, 'minute', numericInput(e.target.value))}
                         className="col-span-2 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2 py-1.5 text-xs text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                         placeholder="Min"
+                        type="number"
+                        min="0"
+                        step="1"
                         inputMode="numeric"
                       />
                       <button
@@ -785,10 +974,10 @@ export default function App() {
 
               <button
                 type="submit"
-                disabled={isSavingScores}
+                disabled={isSavingScores || !hasPendingFixtures}
                 className="w-full rounded-xl border border-[#3B82F6] bg-[#0B4BB3] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1D5FD0] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSavingScores ? 'Subiendo...' : 'Guardar partido en Firebase'}
+                {isSavingScores ? 'Subiendo...' : 'Guardar'}
               </button>
             </form>
           </div>

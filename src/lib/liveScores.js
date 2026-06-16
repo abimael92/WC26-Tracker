@@ -487,7 +487,7 @@ export const saveGroupMatchesToFirebase = async (groupMatches, teamMap) => {
 
   const payload = Object.entries(groupMatches).flatMap(([groupId, matches]) =>
     matches.map((match, index) => ({
-      matchId: Number(`${groupId.charCodeAt(0)}${index + 1}`),
+      matchId: ((groupId.charCodeAt(0) - 65) * 6) + (index + 1),
       group: groupId,
       homeTeam: teamMap[match.home]?.name || match.home,
       awayTeam: teamMap[match.away]?.name || match.away,
