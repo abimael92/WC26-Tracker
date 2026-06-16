@@ -361,7 +361,7 @@ export default function App() {
                 disabled={liveDataLocked}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
-                Simular grupos automáticamente
+                Simular grupos
               </button>
               <button
                 onClick={resetAll}
@@ -482,7 +482,7 @@ export default function App() {
                 list="team-search-options"
                 value={teamSearchQuery}
                 onChange={(e) => setTeamSearchQuery(e.target.value)}
-                placeholder="Buscar equipo o código FIFA"
+                placeholder="Buscar equipo"
                 className="min-w-[220px] flex-1 rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/25 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:placeholder:text-[#7A879D]"
               />
               <datalist id="team-search-options">
