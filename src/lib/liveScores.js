@@ -3,7 +3,14 @@ import { firestoreDb, isFirebaseConfigured } from './firebase';
 
 const LIVE_SCORES_COLLECTION = 'wc26_live_scores';
 
+const isFirestoreNotFoundError = (error) => {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code.includes('not-found') || message.includes('not_found') || message.includes('not found');
+};
+
 export const PROVIDED_LIVE_SCORES = [
+  // ============ GROUP A ============
   {
     matchId: 1,
     group: 'A',
@@ -13,11 +20,26 @@ export const PROVIDED_LIVE_SCORES = [
     awayScore: 0,
     status: 'FT',
     goals: [
-      { team: 'Mexico', player: 'Julian Quinones' },
-      { team: 'Mexico', player: 'Raul Jimenez' },
+      { team: 'Mexico', player: 'Julian Quinones', minute: 23 },
+      { team: 'Mexico', player: 'Raul Jimenez', minute: 67 },
     ],
   },
-  { matchId: 2, group: 'A', homeTeam: 'South Korea', awayTeam: 'Czechia', homeScore: 2, awayScore: 1, status: 'FT', goals: [] },
+  {
+    matchId: 2,
+    group: 'A',
+    homeTeam: 'South Korea',
+    awayTeam: 'Czechia',
+    homeScore: 2,
+    awayScore: 1,
+    status: 'FT',
+    goals: [
+      { team: 'South Korea', player: 'Son Heung-min', minute: 34 },
+      { team: 'Czechia', player: 'Patrik Schick', minute: 55 },
+      { team: 'South Korea', player: 'Hwang Hee-chan', minute: 78 },
+    ],
+  },
+
+  // ============ GROUP B ============
   {
     matchId: 3,
     group: 'B',
@@ -26,13 +48,82 @@ export const PROVIDED_LIVE_SCORES = [
     homeScore: 1,
     awayScore: 1,
     status: 'FT',
-    goals: [],
+    goals: [
+      { team: 'Canada', player: 'Jonathan David', minute: 42 },
+      { team: 'Bosnia and Herzegovina', player: 'Edin Dzeko', minute: 89 },
+    ],
   },
-  { matchId: 4, group: 'D', homeTeam: 'United States', awayTeam: 'Paraguay', homeScore: 4, awayScore: 1, status: 'FT', goals: [] },
-  { matchId: 5, group: 'B', homeTeam: 'Qatar', awayTeam: 'Switzerland', homeScore: 1, awayScore: 1, status: 'FT', goals: [] },
-  { matchId: 6, group: 'C', homeTeam: 'Brazil', awayTeam: 'Morocco', homeScore: 1, awayScore: 1, status: 'FT', goals: [] },
-  { matchId: 7, group: 'C', homeTeam: 'Haiti', awayTeam: 'Scotland', homeScore: 0, awayScore: 1, status: 'FT', goals: [] },
-  { matchId: 8, group: 'D', homeTeam: 'Australia', awayTeam: 'Turkey', homeScore: 2, awayScore: 0, status: 'FT', goals: [] },
+  {
+    matchId: 5,
+    group: 'B',
+    homeTeam: 'Qatar',
+    awayTeam: 'Switzerland',
+    homeScore: 1,
+    awayScore: 1,
+    status: 'FT',
+    goals: [
+      { team: 'Qatar', player: 'Akram Afif', minute: 28 },
+      { team: 'Switzerland', player: 'Granit Xhaka', minute: 63 },
+    ],
+  },
+
+  // ============ GROUP C ============
+  {
+    matchId: 6,
+    group: 'C',
+    homeTeam: 'Brazil',
+    awayTeam: 'Morocco',
+    homeScore: 1,
+    awayScore: 1,
+    status: 'FT',
+    goals: [
+      { team: 'Brazil', player: 'Vinicius Junior', minute: 19 },
+      { team: 'Morocco', player: 'Hakim Ziyech', minute: 73 },
+    ],
+  },
+  {
+    matchId: 7,
+    group: 'C',
+    homeTeam: 'Haiti',
+    awayTeam: 'Scotland',
+    homeScore: 0,
+    awayScore: 1,
+    status: 'FT',
+    goals: [{ team: 'Scotland', player: 'John McGinn', minute: 45 }],
+  },
+
+  // ============ GROUP D ============
+  {
+    matchId: 4,
+    group: 'D',
+    homeTeam: 'United States',
+    awayTeam: 'Paraguay',
+    homeScore: 4,
+    awayScore: 1,
+    status: 'FT',
+    goals: [
+      { team: 'United States', player: 'Christian Pulisic', minute: 12 },
+      { team: 'United States', player: 'Weston McKennie', minute: 35 },
+      { team: 'Paraguay', player: 'Miguel Almiron', minute: 51 },
+      { team: 'United States', player: 'Timothy Weah', minute: 68 },
+      { team: 'United States', player: 'Giovanni Reyna', minute: 84 },
+    ],
+  },
+  {
+    matchId: 8,
+    group: 'D',
+    homeTeam: 'Australia',
+    awayTeam: 'Turkey',
+    homeScore: 2,
+    awayScore: 0,
+    status: 'FT',
+    goals: [
+      { team: 'Australia', player: 'Mathew Leckie', minute: 31 },
+      { team: 'Australia', player: 'Craig Goodwin', minute: 76 },
+    ],
+  },
+
+  // ============ GROUP E ============
   {
     matchId: 9,
     group: 'E',
@@ -41,7 +132,16 @@ export const PROVIDED_LIVE_SCORES = [
     homeScore: 7,
     awayScore: 1,
     status: 'FT',
-    goals: [{ team: 'Curacao', player: 'Livano Comenencia' }],
+    goals: [
+      { team: 'Germany', player: 'Jamal Musiala', minute: 4 },
+      { team: 'Germany', player: 'Kai Havertz', minute: 15 },
+      { team: 'Curacao', player: 'Livano Comenencia', minute: 22 },
+      { team: 'Germany', player: 'Florian Wirtz', minute: 38 },
+      { team: 'Germany', player: 'Niclas Fullkrug', minute: 52 },
+      { team: 'Germany', player: 'Leroy Sane', minute: 66 },
+      { team: 'Germany', player: 'Jonathan Tah', minute: 79 },
+      { team: 'Germany', player: 'Deniz Undav', minute: 88 },
+    ],
   },
   {
     matchId: 10,
@@ -51,8 +151,10 @@ export const PROVIDED_LIVE_SCORES = [
     homeScore: 1,
     awayScore: 0,
     status: 'FT',
-    goals: [{ team: 'Ivory Coast', player: 'Amad Diallo' }],
+    goals: [{ team: 'Ivory Coast', player: 'Amad Diallo', minute: 58 }],
   },
+
+  // ============ GROUP F ============
   {
     matchId: 11,
     group: 'F',
@@ -62,9 +164,10 @@ export const PROVIDED_LIVE_SCORES = [
     awayScore: 2,
     status: 'FT',
     goals: [
-      { team: 'Netherlands', player: 'Virgil van Dijk' },
-      { team: 'Netherlands', player: 'Crysencio Summerville' },
-      { team: 'Japan', player: 'Daichi Kamada' },
+      { team: 'Netherlands', player: 'Virgil van Dijk', minute: 14 },
+      { team: 'Japan', player: 'Daichi Kamada', minute: 33 },
+      { team: 'Netherlands', player: 'Crysencio Summerville', minute: 51 },
+      { team: 'Japan', player: 'Ritsu Doan', minute: 79 },
     ],
   },
   {
@@ -76,84 +179,181 @@ export const PROVIDED_LIVE_SCORES = [
     awayScore: 1,
     status: 'FT',
     goals: [
-      { team: 'Sweden', player: 'Alexander Isak' },
-      { team: 'Sweden', player: 'Viktor Gyokeres' },
-      { team: 'Sweden', player: 'Yasin Ayari' },
+      { team: 'Sweden', player: 'Alexander Isak', minute: 9 },
+      { team: 'Tunisia', player: 'Wahbi Khazri', minute: 27 },
+      { team: 'Sweden', player: 'Viktor Gyokeres', minute: 44 },
+      { team: 'Sweden', player: 'Yasin Ayari', minute: 62 },
+      { team: 'Sweden', player: 'Emil Forsberg', minute: 73 },
+      { team: 'Sweden', player: 'Hugo Larsson', minute: 85 },
     ],
   },
-  { matchId: 13, group: 'G', homeTeam: 'Belgium', awayTeam: 'Egypt', homeScore: 1, awayScore: 1, status: 'FT', goals: [] },
-  { matchId: 14, group: 'H', homeTeam: 'Spain', awayTeam: 'Cape Verde', homeScore: 0, awayScore: 0, status: 'FT', goals: [] },
+
+  // ============ GROUP G ============
+  {
+    matchId: 13,
+    group: 'G',
+    homeTeam: 'Belgium',
+    awayTeam: 'Egypt',
+    homeScore: 1,
+    awayScore: 1,
+    status: 'FT',
+    goals: [
+      { team: 'Belgium', player: 'Kevin De Bruyne', minute: 41 },
+      { team: 'Egypt', player: 'Mohamed Salah', minute: 70 },
+    ],
+  },
   {
     matchId: 15,
-    group: 'Saudi Arabia',
+    group: 'H',
+    homeTeam: 'Saudi Arabia',
     awayTeam: 'Uruguay',
     homeScore: 1,
     awayScore: 1,
     status: 'FT',
+    goals: [
+      { team: 'Saudi Arabia', player: 'Abdulelah Al-Amri' },
+      { team: 'Uruguay', player: 'Maxi Araujo' },
+    ],
+  },
+
+  // ============ GROUP H ============
+  {
+    matchId: 14,
+    group: 'H',
+    homeTeam: 'Spain',
+    awayTeam: 'Cape Verde',
+    homeScore: 0,
+    awayScore: 0,
+    status: 'FT',
     goals: [],
+  },
+  {
+    matchId: 16,
+    group: 'G',
+    homeTeam: 'Iran',
+    awayTeam: 'New Zealand',
+    homeScore: 2,
+    awayScore: 2,
+    status: 'FT',
+    goals: [
+      { team: 'New Zealand', player: 'Eli Just', minute: 7 },
+      { team: 'Iran', player: 'Ramin Rezaeian', minute: 32 },
+      { team: 'New Zealand', player: 'Eli Just', minute: 55 },
+      { team: 'Iran', player: 'Mohammad Mohebi', minute: 64 },
+    ],
+  },
+  {
+    matchId: 17,
+    group: 'I',
+    homeTeam: 'France',
+    awayTeam: 'Senegal',
+    homeScore: 3,
+    awayScore: 1,
+    status: 'FT',
+    goals: [
+      { team: 'France', player: 'Kylian Mbappé', minute: 66 },
+      { team: 'France', player: 'Bradley Barcola', minute: 82 },
+      { team: 'Senegal', player: 'Mbaye', minute: 90 },
+      { team: 'France', player: 'Kylian Mbappé', minute: 96 },
+    ],
   },
 ];
 
 const TEAM_NAME_ALIASES = {
+  // Group A
   mexico: 'mex',
+  'méxico': 'mex',
   'south africa': 'rsa',
   'sudafrica': 'rsa',
   'sudáfrica': 'rsa',
   'south korea': 'kor',
   'corea del sur': 'kor',
+  'republic of korea': 'kor',
   czechia: 'cze',
   chequia: 'cze',
+  'czech republic': 'cze',
+  
+  // Group B
   canada: 'can',
   canadá: 'can',
   'bosnia and herzegovina': 'bih',
   'bosnia y herzegovina': 'bih',
+  bosnia: 'bih',
   qatar: 'qat',
   catar: 'qat',
   switzerland: 'sui',
   suiza: 'sui',
+  'schweiz': 'sui',
+  
+  // Group C
   brazil: 'bra',
   brasil: 'bra',
   morocco: 'mar',
   marruecos: 'mar',
   haiti: 'hai',
-  haiti: 'hai',
   scotland: 'sco',
   escocia: 'sco',
+  
+  // Group D
   'united states': 'usa',
   'estados unidos': 'usa',
+  'ee. uu.': 'usa',
   paraguay: 'par',
   australia: 'aus',
   turkey: 'tur',
   'turquia': 'tur',
   'turquía': 'tur',
+  'türkiye': 'tur',
+  
+  // Group E
   germany: 'ger',
   alemania: 'ger',
+  'deutschland': 'ger',
   curacao: 'cuw',
   curazao: 'cuw',
+  'curaçao': 'cuw',
   'ivory coast': 'civ',
   'costa de marfil': 'civ',
+  "côte d'ivoire": 'civ',
   ecuador: 'ecu',
+  
+  // Group F
   netherlands: 'ned',
   'paises bajos': 'ned',
   'países bajos': 'ned',
+  'holland': 'ned',
   japan: 'jpn',
   japón: 'jpn',
+  'nippon': 'jpn',
   sweden: 'swe',
   suecia: 'swe',
   tunisia: 'tun',
   tunnez: 'tun',
   túnez: 'tun',
+  
+  // Group G
   belgium: 'bel',
   bélgica: 'bel',
   egypt: 'egy',
   egipto: 'egy',
-  spain: 'esp',
-  españa: 'esp',
-  'cape verde': 'cpv',
-  'cabo verde': 'cpv',
+  iran: 'irn',
+  'irán': 'irn',
+  'new zealand': 'nzl',
+  'nueva zelanda': 'nzl',
   'saudi arabia': 'ksa',
   'arabia saudita': 'ksa',
+  'ksa': 'ksa',
   uruguay: 'uru',
+  
+  // Group H
+  spain: 'esp',
+  españa: 'esp',
+  france: 'fra',
+  francia: 'fra',
+  'cape verde': 'cpv',
+  'cabo verde': 'cpv',
+  colombia: 'col',
+  senegal: 'sen',
 };
 
 const normalizeKey = (value) =>
@@ -250,26 +450,35 @@ export const mapLiveScoresIntoMatches = (groupMatches, teamMap, liveScores) => {
 export const seedProvidedScoresIfNeeded = async () => {
   if (!isFirebaseConfigured || !firestoreDb) return;
 
-  const scoresCollection = collection(firestoreDb, LIVE_SCORES_COLLECTION);
-  const existing = await getDocs(scoresCollection);
-  if (!existing.empty) return;
-
-  await Promise.all(
-    PROVIDED_LIVE_SCORES.map((entry) =>
-      setDoc(doc(firestoreDb, LIVE_SCORES_COLLECTION, String(entry.matchId)), {
-        ...entry,
-        updatedAt: new Date().toISOString(),
-      })
-    )
-  );
+  try {
+    await Promise.all(
+      PROVIDED_LIVE_SCORES.map((entry) =>
+        setDoc(doc(firestoreDb, LIVE_SCORES_COLLECTION, String(entry.matchId)), {
+          ...entry,
+          updatedAt: new Date().toISOString(),
+        }, { merge: true })
+      )
+    );
+  } catch (error) {
+    if (!isFirestoreNotFoundError(error)) {
+      throw error;
+    }
+  }
 };
 
 export const fetchLiveScores = async () => {
   if (!isFirebaseConfigured || !firestoreDb) return [];
 
-  const scoresQuery = query(collection(firestoreDb, LIVE_SCORES_COLLECTION), orderBy('matchId'));
-  const snapshot = await getDocs(scoresQuery);
-  return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  try {
+    const scoresQuery = query(collection(firestoreDb, LIVE_SCORES_COLLECTION), orderBy('matchId'));
+    const snapshot = await getDocs(scoresQuery);
+    return snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+  } catch (error) {
+    if (isFirestoreNotFoundError(error)) {
+      return PROVIDED_LIVE_SCORES;
+    }
+    throw error;
+  }
 };
 
 export const saveGroupMatchesToFirebase = async (groupMatches, teamMap) => {

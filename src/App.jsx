@@ -50,10 +50,12 @@ export default function App() {
   const [selectedStandingTeamId, setSelectedStandingTeamId] = useState(null);
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
   const bgmAudioRef = useRef(null);
+  const isSyncingRef = useRef(false);
   const [bgmEnabled, setBgmEnabled] = useState(false);
   const [isSavingScores, setIsSavingScores] = useState(false);
   const [isSyncingScores, setIsSyncingScores] = useState(false);
   const [liveSyncMessage, setLiveSyncMessage] = useState('');
+  const [liveScoresFeed, setLiveScoresFeed] = useState([]);
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === 'undefined') return 'groups';
     const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
@@ -65,32 +67,71 @@ export default function App() {
     window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, activeSection);
   }, [activeSection]);
 
+  const withTimeout = async (promise, ms = 8000) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error('SYNC_TIMEOUT')), ms);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  };
+
+  const logLiveScoresSnapshot = (liveScores, appliedCount) => {
+    const normalized = (liveScores || [])
+      .map((match) => ({
+        matchId: Number(match?.matchId ?? 0),
+        group: String(match?.group || '-'),
+        homeTeam: String(match?.homeTeam || '-'),
+        awayTeam: String(match?.awayTeam || '-'),
+        score: `${match?.homeScore ?? '-'}-${match?.awayScore ?? '-'}`,
+        status: String(match?.status || '-'),
+      }))
+      .sort((a, b) => a.matchId - b.matchId);
+
+    console.group('[WC26] Live scores sync');
+    console.info(`Total recibidos: ${normalized.length}`);
+    console.info(`Aplicados en UI: ${appliedCount}`);
+    console.table(normalized);
+    console.groupEnd();
+  };
+
   const syncLiveScores = async ({ seedIfEmpty = false } = {}) => {
+    if (isSyncingRef.current) return 0;
+    isSyncingRef.current = true;
     setIsSyncingScores(true);
-    setLiveSyncMessage('Sincronizando datos...');
+    setLiveSyncMessage('Actualizando...');
 
     try {
       if (seedIfEmpty) {
-        await seedProvidedScoresIfNeeded();
+        await withTimeout(seedProvidedScoresIfNeeded());
       }
 
-      const liveScores = await fetchLiveScores();
+      const liveScores = await withTimeout(fetchLiveScores());
+      setLiveScoresFeed(liveScores);
       if (!liveScores.length) {
         setLiveSyncMessage('No hay datos en Firebase.');
         return 0;
       }
 
       const appliedCount = applyLiveScores(liveScores);
-      setLiveSyncMessage(appliedCount ? `Datos sincronizados (${appliedCount}).` : 'Datos sincronizados.');
+      logLiveScoresSnapshot(liveScores, appliedCount);
+      setLiveSyncMessage(appliedCount ? `Actualizados (${appliedCount}).` : 'Actualizados.');
       return appliedCount;
     } catch (error) {
       console.warn('No se pudieron sincronizar marcadores desde Firebase.', error);
-      setLiveSyncMessage('Error al sincronizar Firebase.');
+      setLiveSyncMessage('Error al Actualizar.');
       return 0;
     } finally {
       setIsSyncingScores(false);
+      isSyncingRef.current = false;
     }
   };
+
+  const isLiveDataUpdated = liveSyncMessage.startsWith('Actualizados');
 
   useEffect(() => {
     let cancelled = false;
@@ -219,6 +260,32 @@ export default function App() {
     [outcomes]
   );
 
+  const topScorers = useMemo(() => {
+    const scorerMap = new Map();
+
+    liveScoresFeed.forEach((match) => {
+      const goals = Array.isArray(match?.goals) ? match.goals : [];
+      goals.forEach((goal) => {
+        const player = String(goal?.player || '').trim();
+        if (!player) return;
+
+        const team = String(goal?.team || '').trim() || 'N/D';
+        const key = `${player}__${team}`;
+        const prev = scorerMap.get(key);
+
+        scorerMap.set(key, {
+          player,
+          team,
+          goals: (prev?.goals || 0) + 1,
+          firstMinute: prev?.firstMinute ?? Number(goal?.minute ?? Number.POSITIVE_INFINITY),
+        });
+      });
+    });
+
+    return [...scorerMap.values()]
+      .sort((a, b) => b.goals - a.goals || a.firstMinute - b.firstMinute || a.player.localeCompare(b.player, 'es'));
+  }, [liveScoresFeed]);
+
   const champion = useMemo(() => (bracket.champion ? teamMap[bracket.champion] : null), [bracket.champion, teamMap]);
 
   const searchableTeams = useMemo(
@@ -258,6 +325,7 @@ export default function App() {
       const savedCount = await saveGroupMatchesToFirebase(groupMatches, teamMap);
       if (!savedCount) return;
       const liveScores = await fetchLiveScores();
+      setLiveScoresFeed(liveScores);
       applyLiveScores(liveScores);
     } catch (error) {
       console.warn('No se pudieron guardar los marcadores en Firebase.', error);
@@ -307,7 +375,7 @@ export default function App() {
                 disabled={isSyncingScores}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
-                {isSyncingScores ? 'Sincronizando...' : 'Sincronizar datos'}
+                {isSyncingScores ? 'Actualizando...' : isLiveDataUpdated ? 'Actualizados' : 'Actualizar'}
               </button>
               <button
                 onClick={handleSaveLiveData}
@@ -323,29 +391,65 @@ export default function App() {
           )}
         </motion.header>
 
-        <section className="grid gap-4 lg:grid-cols-1">
-          <article className="rounded-3xl border border-[#CBD5E1] bg-white p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[#18181B]">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Próximos partidos</p>
+        <section className="grid gap-4 lg:grid-cols-2">
+          <article className="rounded-3xl border border-[#CBD5E1] bg-white/95 p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[linear-gradient(180deg,#141B2A_0%,#101520_100%)]">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Próximos partidos</p>
+              <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#1D4ED8] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                Agenda
+              </span>
+            </div>
             <div className="mt-3 space-y-3">
               {upcomingMatches.map((match) => (
-                <div key={`upcoming-${match.id}`} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 dark:border-[#2C2C34] dark:bg-[#111117]">
+                <div key={`upcoming-${match.id}`} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 transition-colors hover:bg-[#F1F5F9] dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-[#334155] dark:text-[#D4D4D8]">Grupo {match.groupId}</span>
+                    <span className="rounded-full bg-[#E2E8F0] px-2 py-0.5 font-semibold text-[#334155] dark:bg-[#1A2740] dark:text-[#D4D4D8]">Grupo {match.groupId}</span>
                     <span className="font-semibold text-[#2563EB] dark:text-[#8FB4FF]">{formatUpcomingKickoff(match.kickoffAt)}</span>
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-3 text-sm">
-                    <span className="flex items-center gap-2 font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
+                  <div className="mt-1 grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2 font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.home]?.code}.png`} alt={teamMap[match.home]?.name} loading="lazy" />
-                      {teamMap[match.home]?.name}
+                      <span className="truncate">{teamMap[match.home]?.name}</span>
                     </span>
-                    <span className="font-black text-[#334155] dark:text-[#D4D4D8]">vs.</span>
-                    <span className="flex items-center justify-end gap-2 text-right font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
-                      {teamMap[match.away]?.name}
+                    <span className="mx-auto inline-flex w-[50px] items-center justify-center rounded-full border border-[#CBD5E1] px-2 py-0.5 text-center font-black text-[#334155] dark:border-[#2E3B52] dark:text-[#D4D4D8]">vs.</span>
+                    <span className="flex min-w-0 items-center justify-end gap-2 text-right font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
+                      <span className="truncate">{teamMap[match.away]?.name}</span>
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.away]?.code}.png`} alt={teamMap[match.away]?.name} loading="lazy" />
                     </span>
                   </div>
                 </div>
               ))}
+            </div>
+          </article>
+
+          <article className="rounded-3xl border border-[#CBD5E1] bg-white/95 p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[linear-gradient(180deg,#141B2A_0%,#101520_100%)]">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Goleadores</p>
+              <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#1D4ED8] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                Ranking
+              </span>
+            </div>
+            <div className="mt-3 max-h-[250px] space-y-2 overflow-y-auto pr-1">
+              {topScorers.length ? (
+                topScorers.map((scorer, index) => (
+                  <div key={`${scorer.player}-${scorer.team}`} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 transition-colors hover:bg-[#F1F5F9] dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[11px] font-black text-[#1E3A8A] dark:bg-[#1A2740] dark:text-[#8FB4FF]">
+                        {index + 1}
+                      </span>
+                      <p className="truncate text-sm font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
+                        {scorer.player}
+                      </p>
+                      <p className="truncate text-xs text-[#64748B] dark:text-[#A1A1AA]">{scorer.team}</p>
+                    </div>
+                    <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-1 text-xs font-black text-[#1E3A8A] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                      {scorer.goals} gol{scorer.goals === 1 ? '' : 'es'}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-[#64748B] dark:text-[#A1A1AA]">Sin datos de goleadores todavía.</p>
+              )}
             </div>
           </article>
 
