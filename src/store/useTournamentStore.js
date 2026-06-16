@@ -539,7 +539,6 @@ export const useTournamentStore = create(
         let appliedCount = 0;
 
         set((state) => {
-          if (state.stageLocked) return state;
           if (!Array.isArray(liveScores) || !liveScores.length) return state;
 
           const mapped = mapLiveScoresIntoMatches(state.groupMatches, state.teamMap, liveScores);
