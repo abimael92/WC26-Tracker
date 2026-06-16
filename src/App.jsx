@@ -52,6 +52,8 @@ export default function App() {
   const bgmAudioRef = useRef(null);
   const [bgmEnabled, setBgmEnabled] = useState(false);
   const [isSavingScores, setIsSavingScores] = useState(false);
+  const [isSyncingScores, setIsSyncingScores] = useState(false);
+  const [liveSyncMessage, setLiveSyncMessage] = useState('');
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === 'undefined') return 'groups';
     const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
@@ -63,24 +65,42 @@ export default function App() {
     window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, activeSection);
   }, [activeSection]);
 
+  const syncLiveScores = async ({ seedIfEmpty = false } = {}) => {
+    setIsSyncingScores(true);
+    setLiveSyncMessage('Sincronizando datos...');
+
+    try {
+      if (seedIfEmpty) {
+        await seedProvidedScoresIfNeeded();
+      }
+
+      const liveScores = await fetchLiveScores();
+      if (!liveScores.length) {
+        setLiveSyncMessage('No hay datos en Firebase.');
+        return 0;
+      }
+
+      const appliedCount = applyLiveScores(liveScores);
+      setLiveSyncMessage(appliedCount ? `Datos sincronizados (${appliedCount}).` : 'Datos sincronizados.');
+      return appliedCount;
+    } catch (error) {
+      console.warn('No se pudieron sincronizar marcadores desde Firebase.', error);
+      setLiveSyncMessage('Error al sincronizar Firebase.');
+      return 0;
+    } finally {
+      setIsSyncingScores(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
-    const syncLiveScores = async () => {
-      try {
-        await seedProvidedScoresIfNeeded();
-        const liveScores = await fetchLiveScores();
-        if (cancelled || !liveScores.length) return;
-        applyLiveScores(liveScores);
-      } catch (error) {
-        console.warn('No se pudieron sincronizar marcadores desde Firebase.', error);
-      }
-    };
-
-    syncLiveScores();
+    syncLiveScores({ seedIfEmpty: true });
 
     const unsubscribeHydration = useTournamentStore.persist?.onFinishHydration?.(() => {
-      syncLiveScores();
+      if (!cancelled) {
+        syncLiveScores();
+      }
     });
 
     return () => {
@@ -283,6 +303,13 @@ export default function App() {
                 Reiniciar
               </button>
               <button
+                onClick={() => syncLiveScores()}
+                disabled={isSyncingScores}
+                className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
+              >
+                {isSyncingScores ? 'Sincronizando...' : 'Sincronizar datos'}
+              </button>
+              <button
                 onClick={handleSaveLiveData}
                 disabled={isSavingScores || liveDataLocked}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
@@ -291,6 +318,9 @@ export default function App() {
               </button>
             </div>
           </div>
+          {liveSyncMessage && (
+            <p className="mt-2 text-xs text-[#475569] dark:text-[#9CA3AF]">{liveSyncMessage}</p>
+          )}
         </motion.header>
 
         <section className="grid gap-4 lg:grid-cols-1">
