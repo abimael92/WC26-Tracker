@@ -4,7 +4,7 @@ import bracketThemeSong from './assets/WorldCup26 Bracket Theme.mp3';
 import BracketView from './components/BracketView';
 import ChampionOverlay from './components/ChampionOverlay';
 import GroupStage from './components/GroupStage';
-import { fetchLiveScores, saveGroupMatchesToFirebase, seedProvidedScoresIfNeeded } from './lib/liveScores';
+import { fetchLiveScores, saveLiveScoreEntryToFirebase, seedProvidedScoresIfNeeded } from './lib/liveScores';
 import { getGroupMatchScheduleById } from './lib/schedule';
 import { useTournamentStore } from './store/useTournamentStore';
 
@@ -56,6 +56,18 @@ export default function App() {
   const [isSyncingScores, setIsSyncingScores] = useState(false);
   const [liveSyncMessage, setLiveSyncMessage] = useState('');
   const [liveScoresFeed, setLiveScoresFeed] = useState([]);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveForm, setSaveForm] = useState({
+    matchId: '',
+    group: '',
+    homeTeam: '',
+    awayTeam: '',
+    homeScore: '',
+    awayScore: '',
+    status: 'FT',
+  });
+  const [goalRows, setGoalRows] = useState([{ team: '', player: '', minute: '' }]);
+  const [saveModalError, setSaveModalError] = useState('');
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === 'undefined') return 'groups';
     const saved = window.localStorage.getItem(ACTIVE_SECTION_STORAGE_KEY);
@@ -319,19 +331,89 @@ export default function App() {
     }
   };
 
-  const handleSaveLiveData = async () => {
+  const handleSaveLiveData = async (entry) => {
     setIsSavingScores(true);
+    setSaveModalError('');
     try {
-      const savedCount = await saveGroupMatchesToFirebase(groupMatches, teamMap);
-      if (!savedCount) return;
+      const saved = await saveLiveScoreEntryToFirebase(entry);
+      if (!saved) {
+        setSaveModalError('No se pudo guardar el partido. Revisa los datos.');
+        return;
+      }
       const liveScores = await fetchLiveScores();
       setLiveScoresFeed(liveScores);
       applyLiveScores(liveScores);
+      setLiveSyncMessage(`Partido ${entry.matchId} guardado en Firebase.`);
+      setIsSaveModalOpen(false);
+      setSaveForm({ matchId: '', group: '', homeTeam: '', awayTeam: '', homeScore: '', awayScore: '', status: 'FT' });
+      setGoalRows([{ team: '', player: '', minute: '' }]);
     } catch (error) {
       console.warn('No se pudieron guardar los marcadores en Firebase.', error);
+      setSaveModalError('No se pudo subir la información a Firebase.');
     } finally {
       setIsSavingScores(false);
     }
+  };
+
+  const handleSaveModalSubmit = (event) => {
+    event.preventDefault();
+
+    const matchId = Number(saveForm.matchId);
+    const homeScore = Number(saveForm.homeScore);
+    const awayScore = Number(saveForm.awayScore);
+    const group = saveForm.group.trim().toUpperCase();
+    const homeTeam = saveForm.homeTeam.trim();
+    const awayTeam = saveForm.awayTeam.trim();
+
+    if (!Number.isFinite(matchId) || matchId <= 0) {
+      setSaveModalError('El ID del partido debe ser un número válido.');
+      return;
+    }
+
+    if (!group || !homeTeam || !awayTeam) {
+      setSaveModalError('Completa grupo y equipos.');
+      return;
+    }
+
+    if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore) || homeScore < 0 || awayScore < 0) {
+      setSaveModalError('El marcador debe tener goles válidos (0 o más).');
+      return;
+    }
+
+    const goals = goalRows
+      .map((row) => ({
+        team: String(row.team || '').trim(),
+        player: String(row.player || '').trim(),
+        minute: row.minute === '' ? undefined : Number(row.minute),
+      }))
+      .filter((row) => row.team && row.player)
+      .map((row) => ({
+        ...row,
+        ...(Number.isFinite(row.minute) ? { minute: row.minute } : {}),
+      }));
+
+    handleSaveLiveData({
+      matchId,
+      group,
+      homeTeam,
+      awayTeam,
+      homeScore,
+      awayScore,
+      status: saveForm.status || 'FT',
+      goals,
+    });
+  };
+
+  const updateGoalRow = (index, field, value) => {
+    setGoalRows((prev) => prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)));
+  };
+
+  const addGoalRow = () => {
+    setGoalRows((prev) => [...prev, { team: '', player: '', minute: '' }]);
+  };
+
+  const removeGoalRow = (index) => {
+    setGoalRows((prev) => (prev.length === 1 ? prev : prev.filter((_, rowIndex) => rowIndex !== index)));
   };
 
   const rootTheme = 'theme-dark dark';
@@ -378,8 +460,8 @@ export default function App() {
                 {isSyncingScores ? 'Actualizando...' : isLiveDataUpdated ? 'Actualizados' : 'Actualizar'}
               </button>
               <button
-                onClick={handleSaveLiveData}
-                disabled={isSavingScores || liveDataLocked}
+                onClick={() => setIsSaveModalOpen(true)}
+                disabled={isSavingScores}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
                 {isSavingScores ? 'Guardando...' : 'Guardar datos'}
@@ -563,6 +645,155 @@ export default function App() {
       >
         {bgmEnabled ? '⏸ Pausar música' : '▶'}
       </button>
+
+      {isSaveModalOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#020617]/70 px-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-[#25324A] bg-[#0F172A] p-5 shadow-[0_20px_50px_rgba(2,6,23,0.6)]">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#8FB4FF]">Subir resultado</p>
+                <p className="mt-1 text-xs text-[#A9B4C7]">Ingresa marcador y goles del partido para guardar en Firebase.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSavingScores) return;
+                  setIsSaveModalOpen(false);
+                  setSaveModalError('');
+                }}
+                className="rounded-full border border-[#2E3B52] px-2 py-1 text-xs font-semibold text-[#D4D4D8] hover:bg-[#1A2740]"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModalSubmit} className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">ID partido *</span>
+                  <input
+                    value={saveForm.matchId}
+                    onChange={(e) => setSaveForm((prev) => ({ ...prev, matchId: e.target.value }))}
+                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                    placeholder="17"
+                    inputMode="numeric"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Grupo *</span>
+                  <input
+                    value={saveForm.group}
+                    onChange={(e) => setSaveForm((prev) => ({ ...prev, group: e.target.value }))}
+                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                    placeholder="I"
+                    maxLength={2}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Equipo local *</span>
+                  <input
+                    value={saveForm.homeTeam}
+                    onChange={(e) => setSaveForm((prev) => ({ ...prev, homeTeam: e.target.value }))}
+                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                    placeholder="France"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Equipo visitante *</span>
+                  <input
+                    value={saveForm.awayTeam}
+                    onChange={(e) => setSaveForm((prev) => ({ ...prev, awayTeam: e.target.value }))}
+                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                    placeholder="Senegal"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Goles local *</span>
+                  <input
+                    value={saveForm.homeScore}
+                    onChange={(e) => setSaveForm((prev) => ({ ...prev, homeScore: e.target.value }))}
+                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                    placeholder="3"
+                    inputMode="numeric"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-[#A9B4C7]">Goles visitante *</span>
+                  <input
+                    value={saveForm.awayScore}
+                    onChange={(e) => setSaveForm((prev) => ({ ...prev, awayScore: e.target.value }))}
+                    className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                    placeholder="1"
+                    inputMode="numeric"
+                  />
+                </label>
+              </div>
+
+              <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#A9B4C7]">Goles (equipo, jugador, minuto)</p>
+                  <button
+                    type="button"
+                    onClick={addGoalRow}
+                    className="rounded-full border border-[#3B82F6] px-2.5 py-1 text-[11px] font-semibold text-[#8FB4FF] hover:bg-[#1A2740]"
+                  >
+                    + Agregar gol
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {goalRows.map((row, index) => (
+                    <div key={`goal-row-${index}`} className="grid grid-cols-12 gap-2">
+                      <input
+                        value={row.team}
+                        onChange={(e) => updateGoalRow(index, 'team', e.target.value)}
+                        className="col-span-4 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2 py-1.5 text-xs text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                        placeholder="Equipo"
+                      />
+                      <input
+                        value={row.player}
+                        onChange={(e) => updateGoalRow(index, 'player', e.target.value)}
+                        className="col-span-5 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2 py-1.5 text-xs text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                        placeholder="Jugador"
+                      />
+                      <input
+                        value={row.minute}
+                        onChange={(e) => updateGoalRow(index, 'minute', e.target.value)}
+                        className="col-span-2 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2 py-1.5 text-xs text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                        placeholder="Min"
+                        inputMode="numeric"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeGoalRow(index)}
+                        className="col-span-1 rounded-lg border border-[#2E3B52] text-xs font-semibold text-[#D4D4D8] hover:bg-[#1A2740]"
+                        aria-label="Eliminar gol"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {saveModalError && <p className="text-xs font-semibold text-[#FCA5A5]">{saveModalError}</p>}
+
+              <button
+                type="submit"
+                disabled={isSavingScores}
+                className="w-full rounded-xl border border-[#3B82F6] bg-[#0B4BB3] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1D5FD0] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingScores ? 'Subiendo...' : 'Guardar partido en Firebase'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

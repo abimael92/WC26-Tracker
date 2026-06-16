@@ -509,3 +509,32 @@ export const saveGroupMatchesToFirebase = async (groupMatches, teamMap) => {
 
   return validPayload.length;
 };
+
+export const saveLiveScoreEntryToFirebase = async (entry) => {
+  if (!isFirebaseConfigured || !firestoreDb) return false;
+  if (!entry || !Number.isFinite(Number(entry.matchId))) return false;
+
+  const matchId = Number(entry.matchId);
+  const payload = {
+    matchId,
+    group: String(entry.group || '').trim().toUpperCase(),
+    homeTeam: String(entry.homeTeam || '').trim(),
+    awayTeam: String(entry.awayTeam || '').trim(),
+    homeScore: Number(entry.homeScore),
+    awayScore: Number(entry.awayScore),
+    status: String(entry.status || 'FT').trim().toUpperCase() || 'FT',
+    goals: Array.isArray(entry.goals)
+      ? entry.goals
+          .map((goal) => ({
+            team: String(goal?.team || '').trim(),
+            player: String(goal?.player || '').trim(),
+            ...(Number.isFinite(Number(goal?.minute)) ? { minute: Number(goal.minute) } : {}),
+          }))
+          .filter((goal) => goal.team && goal.player)
+      : [],
+    updatedAt: new Date().toISOString(),
+  };
+
+  await setDoc(doc(firestoreDb, LIVE_SCORES_COLLECTION, String(matchId)), payload, { merge: true });
+  return true;
+};
