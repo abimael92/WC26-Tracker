@@ -546,6 +546,46 @@ export default function App() {
     setGoalRows((prev) => (prev.length === 1 ? prev : prev.filter((_, rowIndex) => rowIndex !== index)));
   };
 
+  const openSaveModal = ({ prefillGoal } = {}) => {
+    const prefilledPlayer = String(prefillGoal?.player || '').trim();
+    const prefilledTeamRaw = String(prefillGoal?.team || '').trim();
+    setIsSaveModalOpen(true);
+    setSaveModalError('');
+
+    const firstFixture = selectableFixtureOptions[0];
+    if (!firstFixture) {
+      setSelectedFixtureKey('');
+      setGoalRows([{ team: '', player: prefilledPlayer, minute: '' }]);
+      setSaveModalError('No hay partidos pendientes por guardar.');
+      return;
+    }
+
+    setSelectedFixtureKey(firstFixture.fixtureKey);
+    applyFixtureToSaveForm(firstFixture);
+
+    const fixtureHome = String(firstFixture.homeName || '').trim();
+    const fixtureAway = String(firstFixture.awayName || '').trim();
+    let prefilledTeam = '';
+    if (prefilledTeamRaw) {
+      if (normalizeName(prefilledTeamRaw) === normalizeName(fixtureHome)) {
+        prefilledTeam = fixtureHome;
+      } else if (normalizeName(prefilledTeamRaw) === normalizeName(fixtureAway)) {
+        prefilledTeam = fixtureAway;
+      }
+    }
+
+    setGoalRows([{ team: prefilledTeam, player: prefilledPlayer, minute: '' }]);
+  };
+
+  const handleScorerClick = (scorer) => {
+    openSaveModal({
+      prefillGoal: {
+        team: scorer?.team,
+        player: scorer?.player,
+      },
+    });
+  };
+
   const rootTheme = 'theme-dark dark';
 
   return (
@@ -590,18 +630,7 @@ export default function App() {
                 {isSyncingScores ? 'Actualizando...' : isLiveDataUpdated ? 'Actualizados' : 'Actualizar'}
               </button>
               <button
-                onClick={() => {
-                  setIsSaveModalOpen(true);
-                  setSaveModalError('');
-                  const firstFixture = selectableFixtureOptions[0];
-                  if (!firstFixture) {
-                    setSelectedFixtureKey('');
-                    setSaveModalError('No hay partidos pendientes por guardar.');
-                    return;
-                  }
-                  setSelectedFixtureKey(firstFixture.fixtureKey);
-                  applyFixtureToSaveForm(firstFixture);
-                }}
+                onClick={() => openSaveModal()}
                 disabled={isSavingScores}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
@@ -652,23 +681,30 @@ export default function App() {
                 Ranking
               </span>
             </div>
-            <div className="mt-3 max-h-[250px] space-y-2 overflow-y-auto pr-1">
+            <div className="mt-3 max-h-[250px] space-y-2 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#E2E8F0] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#E2E8F0] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6] dark:[scrollbar-color:#3B82F6_#0F1626] dark:[&::-webkit-scrollbar-track]:bg-[#0F1626]">
               {topScorers.length ? (
                 topScorers.map((scorer, index) => (
-                  <div key={`${scorer.player}-${scorer.team}`} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 transition-colors hover:bg-[#F1F5F9] dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]">
+                  <button
+                    key={`${scorer.player}-${scorer.team}`}
+                    type="button"
+                    onClick={() => handleScorerClick(scorer)}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#D5E3FF] bg-[#F8FAFC] px-3 py-2.5 text-left transition-colors hover:bg-[#EEF5FF] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35 dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]"
+                  >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[11px] font-black text-[#1E3A8A] dark:bg-[#1A2740] dark:text-[#8FB4FF]">
+                      <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-xs font-black text-[#1E3A8A] dark:bg-[#1A2740] dark:text-[#8FB4FF]">
                         {index + 1}
                       </span>
-                      <p className="truncate text-sm font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
-                        {scorer.player}
-                      </p>
-                      <p className="truncate text-xs text-[#64748B] dark:text-[#A1A1AA]">{scorer.team}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-[15px] font-semibold leading-tight text-[#0F172A] dark:text-[#FAFAFA]">
+                          {scorer.player}
+                        </p>
+                        <p className="truncate text-sm text-[#475569] dark:text-[#A1A1AA]">{scorer.team}</p>
+                      </div>
                     </div>
-                    <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-1 text-xs font-black text-[#1E3A8A] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                    <span className="inline-flex min-w-[88px] items-center justify-center rounded-full border border-[#93C5FD] bg-[#DBEAFE] px-3 py-1.5 text-sm font-extrabold text-[#1E3A8A] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
                       {scorer.goals} gol{scorer.goals === 1 ? '' : 'es'}
                     </span>
-                  </div>
+                  </button>
                 ))
               ) : (
                 <p className="text-sm text-[#64748B] dark:text-[#A1A1AA]">Sin datos de goleadores todavía.</p>
