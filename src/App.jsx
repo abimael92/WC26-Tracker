@@ -733,17 +733,17 @@ export default function App() {
             <div className="mt-3 space-y-3">
               {upcomingMatches.map((match) => (
                 <div key={`upcoming-${match.id}`} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 transition-colors hover:bg-[#F1F5F9] dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]">
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="rounded-full bg-[#E2E8F0] px-2 py-0.5 font-semibold text-[#334155] dark:bg-[#1A2740] dark:text-[#D4D4D8]">Grupo {match.groupId}</span>
-                    <span className="font-semibold text-[#2563EB] dark:text-[#8FB4FF]">{formatUpcomingKickoff(match.kickoffAt)}</span>
+                    <span className="w-full font-semibold text-[#2563EB] dark:text-[#8FB4FF] sm:w-auto sm:text-right">{formatUpcomingKickoff(match.kickoffAt)}</span>
                   </div>
-                  <div className="mt-1 grid grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] items-center gap-2 text-sm">
+                  <div className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] sm:items-center">
                     <span className="flex min-w-0 items-center gap-2 font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.home]?.code}.png`} alt={teamMap[match.home]?.name} loading="lazy" />
                       <span className="truncate">{teamMap[match.home]?.name}</span>
                     </span>
-                    <span className="mx-auto inline-flex w-[50px] items-center justify-center rounded-full border border-[#CBD5E1] px-2 py-0.5 text-center font-black text-[#334155] dark:border-[#2E3B52] dark:text-[#D4D4D8]">vs.</span>
-                    <span className="flex min-w-0 items-center justify-end gap-2 text-right font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
+                    <span className="inline-flex w-fit items-center justify-center rounded-full border border-[#CBD5E1] px-2 py-0.5 text-center font-black text-[#334155] sm:mx-auto sm:w-[50px] dark:border-[#2E3B52] dark:text-[#D4D4D8]">vs.</span>
+                    <span className="flex min-w-0 items-center justify-start gap-2 text-left font-semibold text-[#0F172A] sm:justify-end sm:text-right dark:text-[#FAFAFA]">
                       <span className="truncate">{teamMap[match.away]?.name}</span>
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.away]?.code}.png`} alt={teamMap[match.away]?.name} loading="lazy" />
                     </span>
@@ -767,20 +767,20 @@ export default function App() {
                     key={`${scorer.player}-${scorer.team}`}
                     type="button"
                     onClick={() => handleScorerClick(scorer)}
-                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#D5E3FF] bg-[#F8FAFC] px-3 py-2.5 text-left transition-colors hover:bg-[#EEF5FF] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35 dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]"
+                    className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#D5E3FF] bg-[#F8FAFC] px-2.5 py-2 text-left transition-colors hover:bg-[#EEF5FF] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35 sm:gap-3 sm:px-3 sm:py-2.5 dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-xs font-black text-[#1E3A8A] dark:bg-[#1A2740] dark:text-[#8FB4FF]">
+                      <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[11px] font-black text-[#1E3A8A] sm:h-7 sm:w-7 sm:text-xs dark:bg-[#1A2740] dark:text-[#8FB4FF]">
                         {index + 1}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-[15px] font-semibold leading-tight text-[#0F172A] dark:text-[#FAFAFA]">
+                        <p className="truncate text-sm font-semibold leading-tight text-[#0F172A] sm:text-[15px] dark:text-[#FAFAFA]">
                           {scorer.player}
                         </p>
-                        <p className="truncate text-sm text-[#475569] dark:text-[#A1A1AA]">{scorer.team}</p>
+                        <p className="truncate text-xs text-[#475569] sm:text-sm dark:text-[#A1A1AA]">{scorer.team}</p>
                       </div>
                     </div>
-                    <span className="inline-flex min-w-[88px] items-center justify-center rounded-full border border-[#93C5FD] bg-[#DBEAFE] px-3 py-1.5 text-sm font-extrabold text-[#1E3A8A] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                    <span className="inline-flex min-w-[72px] items-center justify-center rounded-full border border-[#93C5FD] bg-[#DBEAFE] px-2.5 py-1 text-xs font-extrabold text-[#1E3A8A] sm:min-w-[88px] sm:px-3 sm:py-1.5 sm:text-sm dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
                       {scorer.goals} gol{scorer.goals === 1 ? '' : 'es'}
                     </span>
                   </button>
