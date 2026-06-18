@@ -5,10 +5,27 @@ import BracketView from './components/BracketView';
 import ChampionOverlay from './components/ChampionOverlay';
 import GroupStage from './components/GroupStage';
 import { fetchLiveScores, saveLiveScoreEntryToFirebase, seedProvidedScoresIfNeeded } from './lib/liveScores';
-import { getGroupMatchScheduleById } from './lib/schedule';
+import { getGroupMatchScheduleById, getMatchSchedule } from './lib/schedule';
 import { useTournamentStore } from './store/useTournamentStore';
 
 const ACTIVE_SECTION_STORAGE_KEY = 'fifa-active-section';
+const KNOCKOUT_ROUND_ORDER = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
+const KNOCKOUT_ROUND_LABELS = {
+  r32: 'Dieciseisavos',
+  r16: 'Octavos',
+  qf: 'Cuartos',
+  sf: 'Semifinal',
+  third: 'Tercer puesto',
+  final: 'Final',
+};
+const KNOCKOUT_MATCH_ID_OFFSETS = {
+  r32: 72,
+  r16: 88,
+  qf: 96,
+  sf: 100,
+  third: 102,
+  final: 103,
+};
 
 const createTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -301,12 +318,19 @@ export default function App() {
     [groupMatches]
   );
 
-  const fixtureOptions = useMemo(
+  const getKnockoutMatchId = (roundKey, matchIndex) => {
+    const offset = KNOCKOUT_MATCH_ID_OFFSETS[roundKey];
+    if (!Number.isFinite(offset)) return null;
+    return offset + matchIndex + 1;
+  };
+
+  const groupFixtureOptions = useMemo(
     () =>
       flattenedMatches.map((match) => ({
         scheduleEntry: getGroupMatchScheduleById(match.id),
         ...match,
         fixtureKey: `${match.groupId}-${match.groupMatchIndex}`,
+        stageLabel: `Grupo ${match.groupId}`,
         homeName: teamMap[match.home]?.name || match.home,
         awayName: teamMap[match.away]?.name || match.away,
         homeFlag: toFlagEmoji(teamMap[match.home]?.code),
@@ -319,9 +343,49 @@ export default function App() {
     [flattenedMatches, teamMap]
   );
 
+  const knockoutFixtureOptions = useMemo(
+    () =>
+      KNOCKOUT_ROUND_ORDER.flatMap((roundKey) =>
+        (Array.isArray(bracket?.[roundKey]) ? bracket[roundKey] : []).map((match, matchIndex) => {
+          const homeTeamId = match?.teamA || null;
+          const awayTeamId = match?.teamB || null;
+          const homeResolvedName = homeTeamId ? (teamMap[homeTeamId]?.name || homeTeamId) : '';
+          const awayResolvedName = awayTeamId ? (teamMap[awayTeamId]?.name || awayTeamId) : '';
+
+          return {
+            id: match?.id || `${roundKey}-${matchIndex + 1}`,
+            groupId: String(roundKey || '').toUpperCase(),
+            roundKey,
+            scheduleEntry: getMatchSchedule(roundKey, matchIndex),
+            scheduleMatchNumber: getKnockoutMatchId(roundKey, matchIndex),
+            fixtureKey: `KO-${roundKey}-${matchIndex}`,
+            stageLabel: KNOCKOUT_ROUND_LABELS[roundKey] || String(roundKey || '').toUpperCase(),
+            homeName: homeResolvedName,
+            awayName: awayResolvedName,
+            homeDisplayName: homeResolvedName || String(match?.slotA || 'Por definir'),
+            awayDisplayName: awayResolvedName || String(match?.slotB || 'Por definir'),
+            homeFlag: toFlagEmoji(teamMap[homeTeamId]?.code),
+            awayFlag: toFlagEmoji(teamMap[awayTeamId]?.code),
+            homeGoals: '',
+            awayGoals: '',
+            isPlayed: false,
+          };
+        })
+      ),
+    [bracket, teamMap]
+  );
+
+  const fixtureOptions = useMemo(() => [...groupFixtureOptions, ...knockoutFixtureOptions], [groupFixtureOptions, knockoutFixtureOptions]);
+
   const selectableFixtureOptions = useMemo(() => {
     const isSavedInDb = (fixture) =>
       liveScoresFeed.some((entry) => {
+        const fixtureMatchId = Number(fixture.scheduleMatchNumber);
+        const entryMatchId = Number(entry?.matchId);
+        if (Number.isFinite(fixtureMatchId) && Number.isFinite(entryMatchId) && fixtureMatchId === entryMatchId) {
+          return Number.isFinite(Number(entry?.homeScore)) && Number.isFinite(Number(entry?.awayScore));
+        }
+
         const entryGroup = String(entry?.group || '').trim().toUpperCase();
         if (entryGroup !== fixture.groupId) return false;
 
@@ -352,6 +416,30 @@ export default function App() {
         return String(a.fixtureKey).localeCompare(String(b.fixtureKey));
       });
   }, [fixtureOptions, liveScoresFeed]);
+
+  const savePhaseOptions = useMemo(() => {
+    const orderedCodes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'R32', 'R16', 'QF', 'SF', 'THIRD', 'FINAL'];
+    const labelsByCode = {
+      R32: 'Dieciseisavos',
+      R16: 'Octavos',
+      QF: 'Cuartos',
+      SF: 'Semifinal',
+      THIRD: 'Tercer puesto',
+      FINAL: 'Final',
+    };
+
+    const availableCodes = new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']);
+    fixtureOptions.forEach((fixture) => {
+      if (fixture?.groupId) availableCodes.add(String(fixture.groupId).toUpperCase());
+    });
+
+    return orderedCodes
+      .filter((code) => availableCodes.has(code))
+      .map((code) => ({
+        code,
+        label: labelsByCode[code] || `Grupo ${code}`,
+      }));
+  }, [fixtureOptions]);
 
   const hasPendingFixtures = selectableFixtureOptions.length > 0;
   const selectedFixtureForSave = selectableFixtureOptions.find((fixture) => fixture.fixtureKey === selectedFixtureKey) || null;
@@ -566,7 +654,7 @@ export default function App() {
     }
 
     if (!group || !homeTeam || !awayTeam) {
-      setSaveModalError('Completa grupo y equipos.');
+      setSaveModalError('Completa fase y equipos.');
       return;
     }
 
@@ -1030,7 +1118,7 @@ export default function App() {
                     {selectableFixtureOptions.length ? (
                       selectableFixtureOptions.map((fixture) => (
                         <option key={fixture.fixtureKey} value={fixture.fixtureKey}>
-                          {`Grupo ${fixture.groupId} · ${fixture.homeFlag} ${fixture.homeName} vs. ${fixture.awayFlag} ${fixture.awayName}`}
+                          {`${fixture.stageLabel || fixture.groupId} · ${fixture.homeFlag} ${fixture.homeDisplayName || fixture.homeName || 'Por definir'} vs. ${fixture.awayFlag} ${fixture.awayDisplayName || fixture.awayName || 'Por definir'}`}
                         </option>
                       ))
                     ) : (
@@ -1050,16 +1138,16 @@ export default function App() {
                   </label>
 
                   <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-[#A9B4C7]">Grupo *</span>
+                    <span className="mb-1 block text-sm font-semibold text-[#A9B4C7]">Fase *</span>
                     <select
                       value={saveForm.group}
                       onChange={(e) => setSaveForm((prev) => ({ ...prev, group: e.target.value }))}
                       className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                     >
-                      <option value="">Selecciona grupo</option>
-                      {'ABCDEFGHIJKL'.split('').map((groupCode) => (
-                        <option key={`group-${groupCode}`} value={groupCode}>
-                          {`Grupo ${groupCode}`}
+                      <option value="">Selecciona fase</option>
+                      {savePhaseOptions.map((phase) => (
+                        <option key={`phase-${phase.code}`} value={phase.code}>
+                          {phase.label}
                         </option>
                       ))}
                     </select>
