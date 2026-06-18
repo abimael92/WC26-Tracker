@@ -311,7 +311,18 @@ export default function App() {
         return Number.isFinite(Number(entry?.homeScore)) && Number.isFinite(Number(entry?.awayScore));
       });
 
-    return fixtureOptions.filter((fixture) => !fixture.isPlayed && !isSavedInDb(fixture));
+    return fixtureOptions
+      .filter((fixture) => !fixture.isPlayed && !isSavedInDb(fixture))
+      .sort((a, b) => {
+        const aId = Number(a.scheduleMatchNumber);
+        const bId = Number(b.scheduleMatchNumber);
+        const aHasId = Number.isFinite(aId);
+        const bHasId = Number.isFinite(bId);
+        if (aHasId && bHasId) return aId - bId;
+        if (aHasId) return -1;
+        if (bHasId) return 1;
+        return String(a.fixtureKey).localeCompare(String(b.fixtureKey));
+      });
   }, [fixtureOptions, liveScoresFeed]);
 
   const hasPendingFixtures = selectableFixtureOptions.length > 0;
