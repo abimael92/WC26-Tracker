@@ -431,6 +431,9 @@ export default function App() {
           matchId: Number.isFinite(Number(match?.matchId)) ? Number(match.matchId) : null,
           group: String(match?.group || '').trim().toUpperCase(),
           minute,
+          homeTeam: matchHome || 'N/D',
+          awayTeam: matchAway || 'N/D',
+          team,
           opponent: opponent || 'N/D',
           score: `${match?.homeScore ?? '-'}-${match?.awayScore ?? '-'}`,
         };
@@ -874,14 +877,22 @@ export default function App() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8FA3C7]">Total goles</p>
-                <p className="mt-1 text-2xl font-black text-[#8FB4FF]">{selectedScorer.goals}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8FA3C7]">Total goles</p>
+                <p className="mt-1 text-3xl font-black leading-none text-[#8FB4FF]">{selectedScorer.goals}</p>
+                <p className="mt-1 text-xs text-[#7F8BA1]">Anotaciones registradas</p>
               </div>
               <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8FA3C7]">Primer gol</p>
-                <p className="mt-1 text-2xl font-black text-[#8FB4FF]">
-                  {Number.isFinite(selectedScorer.firstMinute) ? `${selectedScorer.firstMinute}'` : 'N/D'}
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8FA3C7]">Partidos con gol</p>
+                <p className="mt-1 text-3xl font-black leading-none text-[#8FB4FF]">
+                  {
+                    new Set(
+                      (selectedScorer.goalEvents || [])
+                        .map((event) => (Number.isFinite(event?.matchId) ? event.matchId : null))
+                        .filter((matchId) => matchId !== null)
+                    ).size
+                  }
                 </p>
+                <p className="mt-1 text-xs text-[#7F8BA1]">Encuentros diferentes</p>
               </div>
             </div>
 
@@ -890,17 +901,28 @@ export default function App() {
               <div className="mt-2 max-h-[320px] space-y-2 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#1A2740] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#1A2740] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6]">
                 {selectedScorer.goalEvents?.length ? (
                   selectedScorer.goalEvents.map((event, index) => (
-                    <div key={`goal-event-${event.matchId ?? 'x'}-${event.minute ?? 'nd'}-${index}`} className="rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-white">
-                          Partido #{Number.isFinite(event.matchId) ? event.matchId : 'N/D'} · Grupo {event.group || 'N/D'}
-                        </p>
-                        <span className="rounded-full border border-[#2E3B52] px-2 py-0.5 text-xs font-semibold text-[#A9B4C7]">
+                    <div key={`goal-event-${event.matchId ?? 'x'}-${event.minute ?? 'nd'}-${index}`} className="rounded-xl border border-[#35507B] bg-[#111C31] px-3 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white">
+                            Partido #{Number.isFinite(event.matchId) ? event.matchId : 'N/D'} · Grupo {event.group || 'N/D'}
+                          </p>
+                          <p className="mt-0.5 text-sm text-[#B5C2D8]">
+                            {event.homeTeam || 'N/D'} vs. {event.awayTeam || 'N/D'}
+                          </p>
+                          <p className="mt-0.5 text-sm text-[#A9B4C7]">
+                            Marcador final: {event.score}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-[#3B82F6]/50 bg-[#0F2345] px-2.5 py-1 text-xs font-bold text-[#8FB4FF]">
                           {Number.isFinite(event.minute) ? `${event.minute}'` : 'Min N/D'}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-[#A9B4C7]">vs. {event.opponent}</p>
-                      <p className="text-xs text-[#7F8BA1]">Marcador: {event.score}</p>
+                      <div className="mt-2">
+                        <span className="rounded-full border border-[#2E3B52] bg-[#0B1425] px-2 py-0.5 text-xs font-semibold text-[#A9B4C7]">
+                          Gol #{index + 1} · {event.team || selectedScorer.team}
+                        </span>
+                      </div>
                     </div>
                   ))
                 ) : (
