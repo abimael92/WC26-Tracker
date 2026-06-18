@@ -70,9 +70,9 @@ export default function GroupStage({
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-3xl tracking-wide text-[#2563EB] dark:text-[#F6C453]">Fase de Grupos</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {hasAnyManualPlacement && (
             <button
               type="button"

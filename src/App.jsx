@@ -755,7 +755,7 @@ export default function App() {
   const rootTheme = 'theme-dark dark';
 
   return (
-    <div className={`${rootTheme} a11y-mode min-h-screen bg-app text-[#0F172A] dark:text-[#FFFFFF]`}>
+    <div className={`${rootTheme} a11y-mode min-h-screen overflow-x-hidden bg-app text-[#0F172A] dark:text-[#FFFFFF]`}>
       <audio ref={bgmAudioRef} src={bracketThemeSong} preload="auto" />
       <div className="animated-bg" />
       <ChampionOverlay open={showChampion} champion={champion} />
@@ -900,13 +900,13 @@ export default function App() {
             >
               Fase eliminatoria
             </button>
-            <div className="ml-auto flex min-w-[280px] flex-wrap items-center gap-2">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:min-w-[280px]">
               <input
                 list="team-search-options"
                 value={teamSearchQuery}
                 onChange={(e) => setTeamSearchQuery(e.target.value)}
                 placeholder="Buscar equipo"
-                className="min-w-[220px] flex-1 rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/25 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:placeholder:text-[#7A879D]"
+                className="w-full min-w-0 flex-1 rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/25 sm:min-w-[220px] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:placeholder:text-[#7A879D]"
               />
               <datalist id="team-search-options">
                 {searchableTeams.map((team) => (
