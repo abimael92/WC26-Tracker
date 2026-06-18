@@ -50,7 +50,6 @@ export default function App() {
     outcomes,
     bracket,
     stageLocked,
-    liveDataLocked,
     updateGroupMatch,
     toggleGroupPlacement,
     clearGroupPlacement,
@@ -777,15 +776,13 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <button
                 onClick={autoSimulateGroups}
-                disabled={liveDataLocked}
                 className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
                 Simular grupos
               </button>
               <button
                 onClick={resetAll}
-                disabled={liveDataLocked}
-                className="rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-[#1F2937] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]"
+                className="rounded-full border border-[#CBD5E1] bg-white px-3 py-2 text-[#1F2937] hover:bg-[#F8FAFC] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:hover:bg-[#1A2740]"
               >
                 Reiniciar
               </button>
@@ -949,7 +946,7 @@ export default function App() {
                     teamMap={teamMap}
                     groupMatches={groupMatches}
                     outcomes={outcomes}
-                    stageLocked={stageLocked || liveDataLocked}
+                    stageLocked={stageLocked}
                     onScoreChange={updateGroupMatch}
                     manualGroupPlacements={manualGroupPlacements}
                     onToggleGroupPlacement={toggleGroupPlacement}
