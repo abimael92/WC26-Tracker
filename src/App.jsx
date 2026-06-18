@@ -5,10 +5,12 @@ import BracketView from './components/BracketView';
 import ChampionOverlay from './components/ChampionOverlay';
 import GroupStage from './components/GroupStage';
 import { fetchLiveScores, saveLiveScoreEntryToFirebase, seedProvidedScoresIfNeeded } from './lib/liveScores';
+import { createPlayerPhotoKey, extractPlayerPhotosFromPdf, getStoredPlayerPhotoMap } from './lib/playerPhotos';
 import { getGroupMatchScheduleById } from './lib/schedule';
 import { useTournamentStore } from './store/useTournamentStore';
 
 const ACTIVE_SECTION_STORAGE_KEY = 'fifa-active-section';
+const PLAYER_ALBUM_PDF_URL = '/ALBUM%20MUNDIAL%202026.pdf';
 
 const createTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -59,6 +61,9 @@ export default function App() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [selectedScorer, setSelectedScorer] = useState(null);
+  const [playerPhotoMap, setPlayerPhotoMap] = useState({});
+  const [selectedPlayerPhotoStatus, setSelectedPlayerPhotoStatus] = useState('');
+  const [selectedPlayerPhotoDebug, setSelectedPlayerPhotoDebug] = useState([]);
   const [selectedFixtureKey, setSelectedFixtureKey] = useState('');
   const [saveForm, setSaveForm] = useState({
     group: '',
@@ -80,6 +85,10 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, activeSection);
   }, [activeSection]);
+
+  useEffect(() => {
+    setPlayerPhotoMap(getStoredPlayerPhotoMap());
+  }, []);
 
   const withTimeout = async (promise, ms = 8000) => {
     let timeoutId;
@@ -133,6 +142,43 @@ export default function App() {
   const formatMinuteLabel = (value) => {
     const text = String(value ?? '').trim();
     return text ? `${text}'` : 'Min N/D';
+  };
+  const formatDebugBbox = (bbox) => {
+    if (!bbox) return 'bbox: n/d';
+    const x0Value = Number.isFinite(Number(bbox.x0)) ? Number(bbox.x0) : Number.isFinite(Number(bbox.x)) ? Number(bbox.x) : null;
+    const y0Value = Number.isFinite(Number(bbox.y0)) ? Number(bbox.y0) : Number.isFinite(Number(bbox.y)) ? Number(bbox.y) : null;
+    const x1Value = Number.isFinite(Number(bbox.x1))
+      ? Number(bbox.x1)
+      : Number.isFinite(Number(bbox.x)) && Number.isFinite(Number(bbox.width))
+        ? Number(bbox.x) + Number(bbox.width)
+        : null;
+    const y1Value = Number.isFinite(Number(bbox.y1))
+      ? Number(bbox.y1)
+      : Number.isFinite(Number(bbox.y)) && Number.isFinite(Number(bbox.height))
+        ? Number(bbox.y) + Number(bbox.height)
+        : null;
+    const x0 = Number.isFinite(x0Value) ? Math.round(x0Value) : '?';
+    const y0 = Number.isFinite(y0Value) ? Math.round(y0Value) : '?';
+    const x1 = Number.isFinite(x1Value) ? Math.round(x1Value) : '?';
+    const y1 = Number.isFinite(y1Value) ? Math.round(y1Value) : '?';
+    return `bbox: ${x0},${y0} -> ${x1},${y1}`;
+  };
+  const createFallbackAvatar = (player, team) => {
+    const name = String(player || '').trim();
+    const teamName = String(team || '').trim();
+    const initials = (name || 'Jugador')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('')
+      .slice(0, 2);
+
+    const safeName = name || 'Jugador';
+    const safeTeam = teamName || 'Equipo';
+    const safeInitials = initials || 'JP';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#1A2740"/><stop offset="100%" stop-color="#0F172A"/></linearGradient></defs><rect width="96" height="96" rx="48" fill="url(#g)"/><circle cx="48" cy="48" r="45" fill="none" stroke="#3B82F6" stroke-width="2"/><text x="48" y="46" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#8FB4FF">${safeInitials}</text><text x="48" y="68" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" fill="#A9B4C7">${safeTeam}</text><title>${safeName}</title></svg>`;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   };
 
   const detectMatchId = ({ group, homeTeam, awayTeam, selectedFixture }) => {
@@ -491,6 +537,83 @@ export default function App() {
       }))
       .sort((a, b) => b.goals - a.goals || a.firstMinute - b.firstMinute || a.player.localeCompare(b.player, 'es'));
   }, [liveScoresFeed]);
+
+  useEffect(() => {
+    if (!selectedScorer) {
+      setSelectedPlayerPhotoStatus('');
+      setSelectedPlayerPhotoDebug([]);
+      return;
+    }
+
+    const key = createPlayerPhotoKey(selectedScorer.player, selectedScorer.team);
+    if (!key) return;
+    const hasCachedPhoto = Boolean(playerPhotoMap[key]);
+    let isActive = true;
+    setSelectedPlayerPhotoStatus(hasCachedPhoto ? 'Analizando PDF para debug...' : 'Buscando foto del jugador en el álbum...');
+    setSelectedPlayerPhotoDebug([]);
+
+    extractPlayerPhotosFromPdf({
+      pdfUrl: PLAYER_ALBUM_PDF_URL,
+      targets: [{ player: selectedScorer.player, team: selectedScorer.team }],
+      onProgress: ({ pageIndex, pagesToScan }) => {
+        if (!isActive) return;
+        setSelectedPlayerPhotoStatus(`Buscando foto... pág ${pageIndex}/${pagesToScan}`);
+      },
+    })
+      .then(({ found, debugByKey }) => {
+        if (!isActive) return;
+        const rawDebugCandidates = Array.isArray(debugByKey?.[key]) ? debugByKey[key] : [];
+        const debugCandidates = [...rawDebugCandidates].sort((a, b) => {
+          const scoreA = Number.isFinite(Number(a?.score)) ? Number(a.score) : 0;
+          const scoreB = Number.isFinite(Number(b?.score)) ? Number(b.score) : 0;
+          const pageA = Number.isFinite(Number(a?.page)) ? Number(a.page) : Number.POSITIVE_INFINITY;
+          const pageB = Number.isFinite(Number(b?.page)) ? Number(b.page) : Number.POSITIVE_INFINITY;
+          return scoreB - scoreA || pageA - pageB;
+        });
+        const debugCounts = debugCandidates.reduce(
+          (acc, candidate) => {
+            const type = String(candidate?.matchType || 'none');
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          },
+          { manual: 0, 'pdf-text': 0, ocr: 0, probe: 0, none: 0 }
+        );
+        setSelectedPlayerPhotoDebug(debugCandidates);
+        if (found && found[key]) {
+          setPlayerPhotoMap((prev) => ({ ...prev, [key]: found[key] }));
+          setSelectedPlayerPhotoStatus('');
+          return;
+        }
+        if (debugCounts['pdf-text'] > 0) {
+          setSelectedPlayerPhotoStatus('Texto del PDF detectado para este jugador (debug).');
+          return;
+        }
+        if (debugCounts.manual > 0) {
+          setSelectedPlayerPhotoStatus('Sin coincidencia de texto; se usó un override manual.');
+          return;
+        }
+        if (debugCounts.ocr > 0 || debugCounts.probe > 0) {
+          setSelectedPlayerPhotoStatus('OCR/probe capturado para este jugador (debug).');
+          return;
+        }
+        setSelectedPlayerPhotoStatus('Sin coincidencia de texto real en el PDF para este jugador.');
+      })
+      .catch((error) => {
+        if (!isActive) return;
+        const detail = String(error?.message || '').trim();
+        setSelectedPlayerPhotoStatus(detail ? `Error OCR: ${detail}` : 'No se pudo procesar el PDF en este momento.');
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedScorer]);
+
+  const getPlayerPhotoSrc = (player, team) => {
+    const key = createPlayerPhotoKey(player, team);
+    if (!key) return createFallbackAvatar(player, team);
+    return playerPhotoMap[key] || createFallbackAvatar(player, team);
+  };
 
   const champion = useMemo(() => (bracket.champion ? teamMap[bracket.champion] : null), [bracket.champion, teamMap]);
 
@@ -907,9 +1030,55 @@ export default function App() {
           <div className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-3xl border border-[#25324A] bg-[#0F172A] p-5 shadow-[0_20px_50px_rgba(2,6,23,0.6)] md:p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
+                <div className="mb-2 flex items-start gap-2">
+                  <div className="flex flex-col items-center gap-1">
+                    {getPlayerPhotoSrc(selectedScorer.player, selectedScorer.team) ? (
+                      <img
+                        className="h-14 w-14 rounded-full border border-[#35507B] object-cover"
+                        src={getPlayerPhotoSrc(selectedScorer.player, selectedScorer.team)}
+                        alt={selectedScorer.player}
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#8FA3C7]">Jugador</span>
+                  </div>
+                  {selectedPlayerPhotoDebug?.[0]?.previewImage ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="relative">
+                        <img
+                          className="h-20 w-20 rounded-xl border border-[#35507B] object-cover"
+                          src={selectedPlayerPhotoDebug[0].previewImage}
+                          alt={`Debug ${selectedPlayerPhotoDebug[0].matchType || 'candidate'}`}
+                          loading="lazy"
+                        />
+                        <span className="absolute -bottom-2 left-1 rounded-full border border-[#35507B] bg-[#111C31] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-[#8FA3C7]">
+                          {selectedPlayerPhotoDebug[0].matchType || 'debug'}
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#8FA3C7]">Evidencia PDF</span>
+                    </div>
+                  ) : (
+                    <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-dashed border-[#35507B] bg-[#111C31] text-[10px] font-semibold text-[#8FA3C7]">
+                      DEBUG
+                    </div>
+                  )}
+                </div>
                 <p className="text-base font-semibold uppercase tracking-[0.18em] text-[#8FB4FF]">Detalle del jugador</p>
                 <p className="mt-1 text-xl font-bold text-white">{selectedScorer.player}</p>
                 <p className="text-sm text-[#A9B4C7]">{selectedScorer.team}</p>
+                {selectedPlayerPhotoStatus ? <p className="mt-1 text-xs text-[#8FA3C7]">{selectedPlayerPhotoStatus}</p> : null}
+                {selectedPlayerPhotoDebug?.length ? (
+                  <div className="mt-2 space-y-2">
+                    <p className="text-[11px] text-[#8FA3C7]">
+                      Fuente: {selectedPlayerPhotoDebug[0].matchType || 'unknown'} · página {selectedPlayerPhotoDebug[0].page}
+                    </p>
+                    {selectedPlayerPhotoDebug.slice(0, 4).map((candidate, index) => (
+                      <p key={`ocr-debug-${index}`} className="max-w-[520px] text-[11px] text-[#8FA3C7]">
+                        {String(candidate.matchType || 'none').toUpperCase()} pág {candidate.page} ({Number.isFinite(Number(candidate.score)) ? Number(candidate.score).toFixed(2) : '0.00'}): {candidate.text} | {formatDebugBbox(candidate.bbox)}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"
