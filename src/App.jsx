@@ -68,7 +68,7 @@ export default function App() {
     awayScore: '',
     status: 'FT',
   });
-  const [goalRows, setGoalRows] = useState([{ team: '', player: '', minute: '' }]);
+  const [goalRows, setGoalRows] = useState([{ team: '', player: '', minute: '', ownGoal: false, isPenalty: false }]);
   const [saveModalError, setSaveModalError] = useState('');
   const [activeSection, setActiveSection] = useState(() => {
     if (typeof window === 'undefined') return 'groups';
@@ -108,6 +108,32 @@ export default function App() {
   };
 
   const numericInput = (value) => String(value || '').replace(/[^0-9]/g, '');
+  const minuteInput = (value) => {
+    let cleaned = String(value || '').replace(/[^0-9+]/g, '');
+    cleaned = cleaned.replace(/\++/g, '+');
+    if (cleaned.startsWith('+')) cleaned = cleaned.slice(1);
+    const firstPlus = cleaned.indexOf('+');
+    if (firstPlus !== -1) {
+      const base = cleaned.slice(0, firstPlus).replace(/\+/g, '');
+      const extra = cleaned.slice(firstPlus + 1).replace(/\+/g, '');
+      cleaned = `${base}+${extra}`;
+    }
+    return cleaned;
+  };
+  const isValidMinuteValue = (value) => value === '' || /^\d+(?:\+\d+)?$/.test(String(value || '').trim());
+  const parseMinuteForSort = (value) => {
+    const text = String(value ?? '').trim();
+    if (!text) return Number.POSITIVE_INFINITY;
+    const match = text.match(/^(\d+)(?:\+(\d+))?$/);
+    if (!match) return Number.POSITIVE_INFINITY;
+    const base = Number(match[1]);
+    const extra = match[2] ? Number(match[2]) : 0;
+    return base + (extra / 100);
+  };
+  const formatMinuteLabel = (value) => {
+    const text = String(value ?? '').trim();
+    return text ? `${text}'` : 'Min N/D';
+  };
 
   const detectMatchId = ({ group, homeTeam, awayTeam, selectedFixture }) => {
     const normalizedGroup = String(group || '').trim().toUpperCase();
@@ -409,14 +435,16 @@ export default function App() {
     liveScoresFeed.forEach((match) => {
       const goals = Array.isArray(match?.goals) ? match.goals : [];
       goals.forEach((goal) => {
+        if (Boolean(goal?.ownGoal)) return;
+
         const player = String(goal?.player || '').trim();
         if (!player) return;
 
         const team = String(goal?.team || '').trim() || 'N/D';
         const key = `${player}__${team}`;
         const prev = scorerMap.get(key);
-        const minuteValue = Number(goal?.minute);
-        const minute = Number.isFinite(minuteValue) ? minuteValue : null;
+        const minuteRaw = String(goal?.minute ?? '').trim();
+        const minute = minuteRaw || null;
         const matchHome = String(match?.homeTeam || '').trim();
         const matchAway = String(match?.awayTeam || '').trim();
         const normalizedTeam = normalizeName(team);
@@ -436,13 +464,15 @@ export default function App() {
           team,
           opponent: opponent || 'N/D',
           score: `${match?.homeScore ?? '-'}-${match?.awayScore ?? '-'}`,
+          isPenalty: Boolean(goal?.isPenalty),
+          ownGoal: Boolean(goal?.ownGoal),
         };
 
         scorerMap.set(key, {
           player,
           team,
           goals: (prev?.goals || 0) + 1,
-          firstMinute: Math.min(prev?.firstMinute ?? Number.POSITIVE_INFINITY, minute ?? Number.POSITIVE_INFINITY),
+          firstMinute: Math.min(prev?.firstMinute ?? Number.POSITIVE_INFINITY, parseMinuteForSort(minute)),
           goalEvents: [...(prev?.goalEvents || []), goalEvent],
         });
       });
@@ -454,8 +484,8 @@ export default function App() {
         goalEvents: [...(scorer.goalEvents || [])].sort((a, b) => {
           const idA = Number.isFinite(a?.matchId) ? a.matchId : Number.POSITIVE_INFINITY;
           const idB = Number.isFinite(b?.matchId) ? b.matchId : Number.POSITIVE_INFINITY;
-          const minuteA = Number.isFinite(a?.minute) ? a.minute : Number.POSITIVE_INFINITY;
-          const minuteB = Number.isFinite(b?.minute) ? b.minute : Number.POSITIVE_INFINITY;
+          const minuteA = parseMinuteForSort(a?.minute);
+          const minuteB = parseMinuteForSort(b?.minute);
           return idA - idB || minuteA - minuteB;
         }),
       }))
@@ -511,7 +541,7 @@ export default function App() {
       setIsSaveModalOpen(false);
       setSaveForm({ group: '', homeTeam: '', awayTeam: '', homeScore: '', awayScore: '', status: 'FT' });
       setSelectedFixtureKey('');
-      setGoalRows([{ team: '', player: '', minute: '' }]);
+      setGoalRows([{ team: '', player: '', minute: '', ownGoal: false, isPenalty: false }]);
     } catch (error) {
       console.warn('No se pudieron guardar los marcadores en Firebase.', error);
       setSaveModalError('No se pudo subir la información a Firebase.');
@@ -545,16 +575,34 @@ export default function App() {
       return;
     }
 
-    const goals = goalRows
+    const rawGoals = goalRows
       .map((row) => ({
         team: String(row.team || '').trim(),
         player: String(row.player || '').trim(),
-        minute: row.minute === '' ? undefined : Number(row.minute),
+        minute: String(row.minute || '').trim(),
+        ownGoal: Boolean(row.ownGoal),
+        isPenalty: Boolean(row.isPenalty),
       }))
-      .filter((row) => row.team && row.player)
+      .filter((row) => row.team && row.player);
+
+    const hasInvalidMinute = rawGoals.some((row) => !isValidMinuteValue(row.minute));
+    if (hasInvalidMinute) {
+      setSaveModalError('Minuto inválido. Usa formato como 45, 90 o 45+2.');
+      return;
+    }
+
+    const expectedGoalsFromScore = homeScore + awayScore;
+    if (rawGoals.length !== expectedGoalsFromScore) {
+      setSaveModalError(`Inconsistencia: marcador total ${expectedGoalsFromScore} pero capturaste ${rawGoals.length} goles.`);
+      return;
+    }
+
+    const goals = rawGoals
       .map((row) => ({
         ...row,
-        ...(Number.isFinite(row.minute) ? { minute: row.minute } : {}),
+        ...(row.minute ? { minute: row.minute } : {}),
+        ...(row.ownGoal ? { ownGoal: true } : {}),
+        ...(row.isPenalty ? { isPenalty: true } : {}),
       }));
 
     handleSaveLiveData({
@@ -574,7 +622,7 @@ export default function App() {
   };
 
   const addGoalRow = () => {
-    setGoalRows((prev) => [...prev, { team: '', player: '', minute: '' }]);
+    setGoalRows((prev) => [...prev, { team: '', player: '', minute: '', ownGoal: false, isPenalty: false }]);
   };
 
   const removeGoalRow = (index) => {
@@ -590,7 +638,7 @@ export default function App() {
     const firstFixture = selectableFixtureOptions[0];
     if (!firstFixture) {
       setSelectedFixtureKey('');
-      setGoalRows([{ team: '', player: prefilledPlayer, minute: '' }]);
+      setGoalRows([{ team: '', player: prefilledPlayer, minute: '', ownGoal: false, isPenalty: false }]);
       setSaveModalError('No hay partidos pendientes por guardar.');
       return;
     }
@@ -609,7 +657,7 @@ export default function App() {
       }
     }
 
-    setGoalRows([{ team: prefilledTeam, player: prefilledPlayer, minute: '' }]);
+    setGoalRows([{ team: prefilledTeam, player: prefilledPlayer, minute: '', ownGoal: false, isPenalty: false }]);
   };
 
   const handleScorerClick = (scorer) => {
@@ -915,13 +963,23 @@ export default function App() {
                           </p>
                         </div>
                         <span className="rounded-full border border-[#3B82F6]/50 bg-[#0F2345] px-2.5 py-1 text-xs font-bold text-[#8FB4FF]">
-                          {Number.isFinite(event.minute) ? `${event.minute}'` : 'Min N/D'}
+                          {formatMinuteLabel(event.minute)}
                         </span>
                       </div>
                       <div className="mt-2">
                         <span className="rounded-full border border-[#2E3B52] bg-[#0B1425] px-2 py-0.5 text-xs font-semibold text-[#A9B4C7]">
                           Gol #{index + 1} · {event.team || selectedScorer.team}
                         </span>
+                        {event.ownGoal ? (
+                          <span className="ml-2 rounded-full border border-[#2E3B52] bg-[#0B1425] px-2 py-0.5 text-xs font-semibold text-[#A9B4C7]">
+                            OG
+                          </span>
+                        ) : null}
+                        {event.isPenalty ? (
+                          <span className="ml-2 rounded-full border border-[#2E3B52] bg-[#0B1425] px-2 py-0.5 text-xs font-semibold text-[#A9B4C7]">
+                            PEN
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   ))
@@ -1077,7 +1135,7 @@ export default function App() {
 
               <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#A9B4C7]">Goles (equipo, jugador, minuto)</p>
+                  <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#A9B4C7]">Goles (equipo, jugador, minuto, OG, PEN)</p>
                   <button
                     type="button"
                     onClick={addGoalRow}
@@ -1093,7 +1151,7 @@ export default function App() {
                       <select
                         value={row.team}
                         onChange={(e) => updateGoalRow(index, 'team', e.target.value)}
-                        className="col-span-4 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2.5 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                        className="col-span-3 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2.5 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                       >
                         <option value="">Equipo</option>
                         {saveForm.homeTeam ? <option value={saveForm.homeTeam}>{saveForm.homeTeam}</option> : null}
@@ -1102,19 +1160,35 @@ export default function App() {
                       <input
                         value={row.player}
                         onChange={(e) => updateGoalRow(index, 'player', e.target.value)}
-                        className="col-span-5 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2.5 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
+                        className="col-span-4 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2.5 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                         placeholder="Jugador"
                       />
                       <input
                         value={row.minute}
-                        onChange={(e) => updateGoalRow(index, 'minute', numericInput(e.target.value))}
+                        onChange={(e) => updateGoalRow(index, 'minute', minuteInput(e.target.value))}
                         className="col-span-2 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2.5 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
-                        placeholder="Min"
-                        type="number"
-                        min="0"
-                        step="1"
+                        placeholder="45 o 45+2"
+                        type="text"
                         inputMode="numeric"
                       />
+                      <label className="col-span-1 flex items-center justify-center rounded-lg border border-[#2E3B52] bg-[#0D1628] px-1 text-[11px] font-semibold text-[#A9B4C7]">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(row.ownGoal)}
+                          onChange={(e) => updateGoalRow(index, 'ownGoal', e.target.checked)}
+                          className="mr-1 h-3.5 w-3.5 accent-[#3B82F6]"
+                        />
+                        OG
+                      </label>
+                      <label className="col-span-1 flex items-center justify-center rounded-lg border border-[#2E3B52] bg-[#0D1628] px-1 text-[11px] font-semibold text-[#A9B4C7]">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(row.isPenalty)}
+                          onChange={(e) => updateGoalRow(index, 'isPenalty', e.target.checked)}
+                          className="mr-1 h-3.5 w-3.5 accent-[#3B82F6]"
+                        />
+                        PEN
+                      </label>
                       <button
                         type="button"
                         onClick={() => removeGoalRow(index)}

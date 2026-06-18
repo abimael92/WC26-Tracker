@@ -514,6 +514,16 @@ export const saveLiveScoreEntryToFirebase = async (entry) => {
   if (!isFirebaseConfigured || !firestoreDb) return false;
   if (!entry || !Number.isFinite(Number(entry.matchId))) return false;
 
+  const normalizeGoalMinute = (value) => {
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+    const exactNumber = text.match(/^\d+$/);
+    if (exactNumber) return Number(text);
+    const extraTime = text.match(/^\d+\+\d+$/);
+    if (extraTime) return text;
+    return null;
+  };
+
   const matchId = Number(entry.matchId);
   const payload = {
     matchId,
@@ -525,11 +535,16 @@ export const saveLiveScoreEntryToFirebase = async (entry) => {
     status: String(entry.status || 'FT').trim().toUpperCase() || 'FT',
     goals: Array.isArray(entry.goals)
       ? entry.goals
-          .map((goal) => ({
-            team: String(goal?.team || '').trim(),
-            player: String(goal?.player || '').trim(),
-            ...(Number.isFinite(Number(goal?.minute)) ? { minute: Number(goal.minute) } : {}),
-          }))
+          .map((goal) => {
+            const minute = normalizeGoalMinute(goal?.minute);
+            return {
+              team: String(goal?.team || '').trim(),
+              player: String(goal?.player || '').trim(),
+              ...(minute !== null ? { minute } : {}),
+              ...(Boolean(goal?.ownGoal) ? { ownGoal: true } : {}),
+              ...(Boolean(goal?.isPenalty) ? { isPenalty: true } : {}),
+            };
+          })
           .filter((goal) => goal.team && goal.player)
       : [],
     updatedAt: new Date().toISOString(),
