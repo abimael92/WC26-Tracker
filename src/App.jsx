@@ -845,7 +845,7 @@ export default function App() {
                 Ranking
               </span>
             </div>
-            <div className="mt-3 max-h-[250px] space-y-2 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#E2E8F0] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#E2E8F0] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6] dark:[scrollbar-color:#3B82F6_#0F1626] dark:[&::-webkit-scrollbar-track]:bg-[#0F1626]">
+            <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pb-2 pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#E2E8F0] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#E2E8F0] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6] dark:[scrollbar-color:#3B82F6_#0F1626] dark:[&::-webkit-scrollbar-track]:bg-[#0F1626]">
               {topScorers.length ? (
                 topScorers.map((scorer, index) => (
                   <button
