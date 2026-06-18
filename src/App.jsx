@@ -57,6 +57,8 @@ export default function App() {
   const [liveSyncMessage, setLiveSyncMessage] = useState('');
   const [liveScoresFeed, setLiveScoresFeed] = useState([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+  const [selectedScorer, setSelectedScorer] = useState(null);
   const [selectedFixtureKey, setSelectedFixtureKey] = useState('');
   const [saveForm, setSaveForm] = useState({
     group: '',
@@ -413,17 +415,47 @@ export default function App() {
         const team = String(goal?.team || '').trim() || 'N/D';
         const key = `${player}__${team}`;
         const prev = scorerMap.get(key);
+        const minuteValue = Number(goal?.minute);
+        const minute = Number.isFinite(minuteValue) ? minuteValue : null;
+        const matchHome = String(match?.homeTeam || '').trim();
+        const matchAway = String(match?.awayTeam || '').trim();
+        const normalizedTeam = normalizeName(team);
+        const opponent =
+          normalizedTeam === normalizeName(matchHome)
+            ? matchAway
+            : normalizedTeam === normalizeName(matchAway)
+              ? matchHome
+              : '';
+
+        const goalEvent = {
+          matchId: Number.isFinite(Number(match?.matchId)) ? Number(match.matchId) : null,
+          group: String(match?.group || '').trim().toUpperCase(),
+          minute,
+          opponent: opponent || 'N/D',
+          score: `${match?.homeScore ?? '-'}-${match?.awayScore ?? '-'}`,
+        };
 
         scorerMap.set(key, {
           player,
           team,
           goals: (prev?.goals || 0) + 1,
-          firstMinute: prev?.firstMinute ?? Number(goal?.minute ?? Number.POSITIVE_INFINITY),
+          firstMinute: Math.min(prev?.firstMinute ?? Number.POSITIVE_INFINITY, minute ?? Number.POSITIVE_INFINITY),
+          goalEvents: [...(prev?.goalEvents || []), goalEvent],
         });
       });
     });
 
     return [...scorerMap.values()]
+      .map((scorer) => ({
+        ...scorer,
+        goalEvents: [...(scorer.goalEvents || [])].sort((a, b) => {
+          const idA = Number.isFinite(a?.matchId) ? a.matchId : Number.POSITIVE_INFINITY;
+          const idB = Number.isFinite(b?.matchId) ? b.matchId : Number.POSITIVE_INFINITY;
+          const minuteA = Number.isFinite(a?.minute) ? a.minute : Number.POSITIVE_INFINITY;
+          const minuteB = Number.isFinite(b?.minute) ? b.minute : Number.POSITIVE_INFINITY;
+          return idA - idB || minuteA - minuteB;
+        }),
+      }))
       .sort((a, b) => b.goals - a.goals || a.firstMinute - b.firstMinute || a.player.localeCompare(b.player, 'es'));
   }, [liveScoresFeed]);
 
@@ -578,12 +610,8 @@ export default function App() {
   };
 
   const handleScorerClick = (scorer) => {
-    openSaveModal({
-      prefillGoal: {
-        team: scorer?.team,
-        player: scorer?.player,
-      },
-    });
+    setSelectedScorer(scorer || null);
+    setIsPlayerModalOpen(true);
   };
 
   const rootTheme = 'theme-dark dark';
@@ -822,6 +850,67 @@ export default function App() {
       >
         {bgmEnabled ? '⏸ Pausar música' : '▶'}
       </button>
+
+      {isPlayerModalOpen && selectedScorer && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#020617]/70 px-4">
+          <div className="w-full max-w-2xl max-h-[88vh] overflow-y-auto rounded-3xl border border-[#25324A] bg-[#0F172A] p-5 shadow-[0_20px_50px_rgba(2,6,23,0.6)] md:p-6">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-base font-semibold uppercase tracking-[0.18em] text-[#8FB4FF]">Detalle del jugador</p>
+                <p className="mt-1 text-xl font-bold text-white">{selectedScorer.player}</p>
+                <p className="text-sm text-[#A9B4C7]">{selectedScorer.team}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPlayerModalOpen(false);
+                  setSelectedScorer(null);
+                }}
+                className="rounded-full border border-[#2E3B52] px-2.5 py-1.5 text-sm font-semibold text-[#D4D4D8] hover:bg-[#1A2740]"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8FA3C7]">Total goles</p>
+                <p className="mt-1 text-2xl font-black text-[#8FB4FF]">{selectedScorer.goals}</p>
+              </div>
+              <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8FA3C7]">Primer gol</p>
+                <p className="mt-1 text-2xl font-black text-[#8FB4FF]">
+                  {Number.isFinite(selectedScorer.firstMinute) ? `${selectedScorer.firstMinute}'` : 'N/D'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#A9B4C7]">Goles registrados</p>
+              <div className="mt-2 max-h-[320px] space-y-2 overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#1A2740] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#1A2740] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6]">
+                {selectedScorer.goalEvents?.length ? (
+                  selectedScorer.goalEvents.map((event, index) => (
+                    <div key={`goal-event-${event.matchId ?? 'x'}-${event.minute ?? 'nd'}-${index}`} className="rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-white">
+                          Partido #{Number.isFinite(event.matchId) ? event.matchId : 'N/D'} · Grupo {event.group || 'N/D'}
+                        </p>
+                        <span className="rounded-full border border-[#2E3B52] px-2 py-0.5 text-xs font-semibold text-[#A9B4C7]">
+                          {Number.isFinite(event.minute) ? `${event.minute}'` : 'Min N/D'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-[#A9B4C7]">vs. {event.opponent}</p>
+                      <p className="text-xs text-[#7F8BA1]">Marcador: {event.score}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-[#A9B4C7]">Sin detalle de goles disponible.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isSaveModalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#020617]/70 px-4">
