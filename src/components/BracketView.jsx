@@ -52,6 +52,7 @@ const colorLegend = {
 const MOBILE_BRACKET_VIEW_STORAGE_KEY = 'fifa-mobile-bracket-view';
 const MOBILE_ROUND_TAB_STORAGE_KEY = 'fifa-mobile-round-tab';
 const ROUND_PROGRESS_ORDER = ['r32', 'r16', 'qf', 'sf', 'final'];
+const ROUND_AUTOSIM_ORDER = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
 const ROUND_BADGE_CLASSES = {
   r32: 'border-[#0EA5E9]/35 bg-[#E0F2FE] text-[#0369A1] dark:border-[#38BDF8]/40 dark:bg-[#08273A] dark:text-[#7DD3FC]',
   r16: 'border-[#2563EB]/35 bg-[#DBEAFE] text-[#1D4ED8] dark:border-[#3B82F6]/40 dark:bg-[#1A2740] dark:text-[#8FB4FF]',
@@ -394,6 +395,7 @@ export default function BracketView({
   bracket,
   outcomes,
   onPickWinner,
+  onAutoSimulateRound,
   onSetMatchTeam,
   onResetMatch,
   stageLocked,
@@ -554,6 +556,20 @@ export default function BracketView({
     () => ROUND_PROGRESS_ORDER.map((roundKey) => ({ roundKey, ...getRoundProgressCounts(roundKey) })),
     [bracket]
   );
+
+  const nextAutoSimRound = useMemo(() => {
+    for (const roundKey of ROUND_AUTOSIM_ORDER) {
+      const matches = (bracket[roundKey] || []).filter(Boolean);
+      const hasPendingPlayableMatch = matches.some((match) => match?.teamA && match?.teamB && !match?.winner);
+      if (hasPendingPlayableMatch) return roundKey;
+    }
+    return null;
+  }, [bracket]);
+
+  const handleAutoSimulatePendingRound = () => {
+    if (!nextAutoSimRound || typeof onAutoSimulateRound !== 'function') return;
+    onAutoSimulateRound(nextAutoSimRound);
+  };
 
   const quickSummary = useMemo(() => {
     const allMatches = Object.values(bracket).flat().filter(Boolean);
@@ -936,6 +952,17 @@ export default function BracketView({
           className="rounded-full border border-[#CBD5E1] bg-white px-3 py-1 text-xs font-semibold text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
         >
           Siguiente pendiente
+        </button>
+        <button
+          onClick={handleAutoSimulatePendingRound}
+          disabled={!nextAutoSimRound}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+            nextAutoSimRound
+              ? 'border-[#16A34A] bg-[#DCFCE7] text-[#166534] hover:bg-[#BBF7D0] dark:border-[#22C55E]/40 dark:bg-[#102A1E] dark:text-[#86EFAC] dark:hover:bg-[#143524]'
+              : 'cursor-not-allowed border-[#CBD5E1] bg-[#F8FAFC] text-[#94A3B8] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#64748B]'
+          }`}
+        >
+          {nextAutoSimRound ? `Simular ${ROUND_LABELS[nextAutoSimRound] || nextAutoSimRound}` : 'Todo simulado'}
         </button>
         {(!isMobile || mobileViewMode === 'bracket') && (
           <div className="ml-auto flex items-center gap-1 rounded-full border border-[#CBD5E1] bg-white px-2 py-1 dark:border-[#25324A] dark:bg-[#121A2B]">
