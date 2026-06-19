@@ -27,6 +27,8 @@ const KNOCKOUT_MATCH_ID_OFFSETS = {
   final: 103,
 };
 
+const isScoreFilled = (value) => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
+
 const createTone = () => {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
   const oscillator = ctx.createOscillator();
@@ -55,6 +57,8 @@ export default function App() {
     clearGroupPlacement,
     clearAllGroupPlacements,
     autoSimulateGroups,
+    lockGroupsAndStartKnockout,
+    autoSimulateRound,
     setMatchTeam,
     setWinner,
     resetMatch,
@@ -96,6 +100,22 @@ export default function App() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(ACTIVE_SECTION_STORAGE_KEY, activeSection);
   }, [activeSection]);
+
+  const areAllGroupMatchesComplete = useMemo(
+    () =>
+      Object.values(groupMatches).every(
+        (matches) =>
+          Array.isArray(matches) && matches.every((match) => isScoreFilled(match?.homeGoals) && isScoreFilled(match?.awayGoals))
+      ),
+    [groupMatches]
+  );
+
+  useEffect(() => {
+    if (activeSection !== 'bracket') return;
+    if (stageLocked) return;
+    if (!areAllGroupMatchesComplete) return;
+    lockGroupsAndStartKnockout();
+  }, [activeSection, stageLocked, areAllGroupMatchesComplete, lockGroupsAndStartKnockout]);
 
   const withTimeout = async (promise, ms = 8000) => {
     let timeoutId;
@@ -612,6 +632,11 @@ export default function App() {
     }
   };
 
+  const handleAutoSimulateRound = (roundKey) => {
+    if (!roundKey) return;
+    autoSimulateRound(roundKey);
+  };
+
   const handleSaveLiveData = async (entry) => {
     setIsSavingScores(true);
     setSaveModalError('');
@@ -961,6 +986,7 @@ export default function App() {
                     bracket={bracket}
                     outcomes={outcomes}
                     onPickWinner={handleWinnerPick}
+                    onAutoSimulateRound={handleAutoSimulateRound}
                     onSetMatchTeam={setMatchTeam}
                     onResetMatch={resetMatch}
                     stageLocked={stageLocked}
