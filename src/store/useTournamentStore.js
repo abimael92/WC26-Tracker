@@ -186,7 +186,15 @@ const recomputeTournament = (groupMatches, teamsMap, manualGroupPlacements, stag
 
 const buildBlankBracket = (outcomes) => {
   const seededBracket = buildBracket(outcomes);
-  const clearRound = (matches = []) => matches.map((match) => ({ ...match, teamA: null, teamB: null, winner: null, loser: null }));
+  const clearRound = (matches = []) => matches.map((match) => ({
+    ...match,
+    teamA: null,
+    teamB: null,
+    winner: null,
+    loser: null,
+    scoreA: null,
+    scoreB: null,
+  }));
 
   return {
     ...seededBracket,
@@ -448,6 +456,8 @@ export const useTournamentStore = create(
             [slotKey]: nextValue,
             winner: null,
             loser: null,
+            scoreA: null,
+            scoreB: null,
           };
 
           if (updatedMatch.teamA && updatedMatch.teamA === updatedMatch.teamB) {
@@ -457,11 +467,11 @@ export const useTournamentStore = create(
           round[matchIndex] = updatedMatch;
 
           if (roundKey === 'r32') {
-            bracket.r16 = bracket.r16.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null }));
-            bracket.qf = bracket.qf.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null }));
-            bracket.sf = bracket.sf.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null }));
-            bracket.third = bracket.third.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null }));
-            bracket.final = bracket.final.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null }));
+            bracket.r16 = bracket.r16.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+            bracket.qf = bracket.qf.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+            bracket.sf = bracket.sf.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+            bracket.third = bracket.third.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+            bracket.final = bracket.final.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
             bracket.champion = null;
           }
 
@@ -469,12 +479,12 @@ export const useTournamentStore = create(
         });
       },
 
-      setWinner: (roundKey, matchIndex, winnerId) => {
+      setWinner: (roundKey, matchIndex, winnerId, scoreData = null) => {
         set((state) => {
           const bracket = structuredClone(state.bracket);
           const match = bracket[roundKey]?.[matchIndex];
           if (!match?.teamA || !match?.teamB) return state;
-          const updated = advanceWinner(bracket, roundKey, matchIndex, winnerId);
+          const updated = advanceWinner(bracket, roundKey, matchIndex, winnerId, scoreData);
           return {
             bracket: updated,
           };
@@ -491,11 +501,13 @@ export const useTournamentStore = create(
             ...round[matchIndex],
             winner: null,
             loser: null,
+            scoreA: null,
+            scoreB: null,
           };
 
           const clearRound = (key) => {
             if (!Array.isArray(bracket[key])) return;
-            bracket[key] = bracket[key].map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null }));
+            bracket[key] = bracket[key].map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
           };
 
           const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
@@ -522,8 +534,24 @@ export const useTournamentStore = create(
         const roundMatches = state.bracket[roundKey];
         roundMatches.forEach((match, index) => {
           if (!match.teamA || !match.teamB || match.winner) return;
-          const winner = chooseWinner(state.teamMap[match.teamA], state.teamMap[match.teamB]);
-          get().setWinner(roundKey, index, winner);
+          const teamA = state.teamMap[match.teamA];
+          const teamB = state.teamMap[match.teamB];
+          if (!teamA || !teamB) return;
+
+          const winner = chooseWinner(teamA, teamB);
+          let [scoreA, scoreB] = simulateScore(teamA, teamB);
+          if (scoreA === scoreB) {
+            if (winner === match.teamA) {
+              scoreA += 1;
+            } else {
+              scoreB += 1;
+            }
+          }
+
+          get().setWinner(roundKey, index, winner, {
+            scoreA,
+            scoreB,
+          });
         });
       },
 
