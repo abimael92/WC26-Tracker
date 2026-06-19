@@ -110,6 +110,7 @@ const formatSlotRuleHint = (slotText) => {
 };
 
 const toMatchScore = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
 };
@@ -264,9 +265,11 @@ function MatchCard({
   const handleScoreInputChange = (slot, value) => {
     if (!teamA || !teamB || typeof onSetMatchScore !== 'function') return;
     const nextValue = value === '' ? '' : value.replace(/[^0-9]/g, '').slice(0, 1);
-    const nextScoreA = slot === 'A' ? nextValue : scoreA ?? '';
-    const nextScoreB = slot === 'B' ? nextValue : scoreB ?? '';
-    onSetMatchScore(roundKey, index, nextScoreA, nextScoreB);
+    if (slot === 'A') {
+      onSetMatchScore(roundKey, index, nextValue, undefined);
+      return;
+    }
+    onSetMatchScore(roundKey, index, undefined, nextValue);
   };
 
   useEffect(() => {
@@ -869,9 +872,11 @@ export default function BracketView({
   const handleMobileSheetScoreChange = (slot, value) => {
     if (!mobileSheetMatch?.teamA || !mobileSheetMatch?.teamB || typeof onSetMatchScore !== 'function') return;
     const nextValue = value === '' ? '' : value.replace(/[^0-9]/g, '').slice(0, 1);
-    const nextScoreA = slot === 'A' ? nextValue : mobileSheetScoreA ?? '';
-    const nextScoreB = slot === 'B' ? nextValue : mobileSheetScoreB ?? '';
-    onSetMatchScore(mobileSheetRoundKey, mobileSheetMatchIndex, nextScoreA, nextScoreB);
+    if (slot === 'A') {
+      onSetMatchScore(mobileSheetRoundKey, mobileSheetMatchIndex, nextValue, undefined);
+      return;
+    }
+    onSetMatchScore(mobileSheetRoundKey, mobileSheetMatchIndex, undefined, nextValue);
   };
 
   const activateMatch = (match, roundKey, index) => {
