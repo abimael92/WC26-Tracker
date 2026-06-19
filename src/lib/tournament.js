@@ -250,6 +250,8 @@ const createRound = (size, key) =>
     teamB: null,
     winner: null,
     loser: null,
+    scoreA: null,
+    scoreB: null,
   }));
 
 export const buildBracket = (outcomes) => {
@@ -277,6 +279,8 @@ export const buildBracket = (outcomes) => {
       teamB: opponentId,
       winner: null,
       loser: null,
+      scoreA: null,
+      scoreB: null,
       slotA: `Espacio ${groupId}1: Reservado para el ganador del Grupo ${groupId}`,
       slotB: thirdPick
         ? `Espacio 3ro-${groupId}: Reservado para el mejor 3.er lugar de los Grupos ${WINNER_THIRD_RULES[groupId].join('/')}`
@@ -293,6 +297,8 @@ export const buildBracket = (outcomes) => {
       teamB: right?.teamId ?? null,
       winner: null,
       loser: null,
+      scoreA: null,
+      scoreB: null,
       slotA: `Espacio R2-${left?.group ?? '?'}: Reservado para el sublíder del Grupo ${left?.group ?? '?'}`,
       slotB: `Espacio R2-${right?.group ?? '?'}: Reservado para el sublíder del Grupo ${right?.group ?? '?'}`,
       helpText: 'Cruce entre equipos de 2.º lugar',
@@ -310,7 +316,7 @@ export const buildBracket = (outcomes) => {
   };
 };
 
-export const advanceWinner = (bracket, roundKey, matchIndex, winnerId) => {
+export const advanceWinner = (bracket, roundKey, matchIndex, winnerId, scoreData = null) => {
   const rounds = {
     r32: 'r16',
     r16: 'qf',
@@ -321,7 +327,16 @@ export const advanceWinner = (bracket, roundKey, matchIndex, winnerId) => {
   const nextRoundKey = rounds[roundKey];
   const match = bracket[roundKey][matchIndex];
   const loserId = match.teamA === winnerId ? match.teamB : match.teamA;
-  bracket[roundKey][matchIndex] = { ...match, winner: winnerId, loser: loserId };
+  const normalizedScoreA = Number.isFinite(Number(scoreData?.scoreA)) ? Number(scoreData.scoreA) : null;
+  const normalizedScoreB = Number.isFinite(Number(scoreData?.scoreB)) ? Number(scoreData.scoreB) : null;
+
+  bracket[roundKey][matchIndex] = {
+    ...match,
+    winner: winnerId,
+    loser: loserId,
+    scoreA: normalizedScoreA,
+    scoreB: normalizedScoreB,
+  };
 
   if (roundKey === 'final') {
     bracket.final[0].winner = winnerId;
