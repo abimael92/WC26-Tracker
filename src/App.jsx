@@ -61,6 +61,7 @@ export default function App() {
     autoSimulateRound,
     setMatchTeam,
     setWinner,
+    setMatchScore,
     resetMatch,
     resetAll,
     applyLiveScores,
@@ -987,6 +988,7 @@ export default function App() {
                     outcomes={outcomes}
                     onPickWinner={handleWinnerPick}
                     onAutoSimulateRound={handleAutoSimulateRound}
+                    onSetMatchScore={setMatchScore}
                     onSetMatchTeam={setMatchTeam}
                     onResetMatch={resetMatch}
                     stageLocked={stageLocked}

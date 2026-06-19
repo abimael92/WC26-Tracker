@@ -491,6 +491,61 @@ export const useTournamentStore = create(
         });
       },
 
+      setMatchScore: (roundKey, matchIndex, scoreAInput, scoreBInput) => {
+        set((state) => {
+          const bracket = structuredClone(state.bracket);
+          const round = bracket[roundKey];
+          const match = round?.[matchIndex];
+          if (!match?.teamA || !match?.teamB) return state;
+
+          const normalizeScore = (value) => {
+            if (value === '' || value === null || value === undefined) return null;
+            const numeric = Number(value);
+            if (!Number.isFinite(numeric)) return null;
+            return Math.max(0, Math.min(9, Math.trunc(numeric)));
+          };
+
+          const scoreA = normalizeScore(scoreAInput);
+          const scoreB = normalizeScore(scoreBInput);
+          const nextWinnerId =
+            scoreA !== null && scoreB !== null && scoreA !== scoreB ? (scoreA > scoreB ? match.teamA : match.teamB) : null;
+
+          round[matchIndex] = {
+            ...match,
+            winner: null,
+            loser: null,
+            scoreA,
+            scoreB,
+          };
+
+          if (match.winner !== nextWinnerId) {
+            const clearRound = (key) => {
+              if (!Array.isArray(bracket[key])) return;
+              bracket[key] = bracket[key].map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+            };
+
+            const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
+            const start = order.indexOf(roundKey);
+            if (start !== -1) {
+              order.slice(start + 1).forEach(clearRound);
+            }
+
+            bracket.champion = null;
+          }
+
+          if (!nextWinnerId) {
+            return { bracket };
+          }
+
+          const updated = advanceWinner(bracket, roundKey, matchIndex, nextWinnerId, {
+            scoreA,
+            scoreB,
+          });
+
+          return { bracket: updated };
+        });
+      },
+
       resetMatch: (roundKey, matchIndex) => {
         set((state) => {
           const bracket = structuredClone(state.bracket);

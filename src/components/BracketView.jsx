@@ -224,6 +224,7 @@ function MatchCard({
   teamMap,
   outcomes,
   onPickWinner,
+  onSetMatchScore,
   onSetMatchTeam,
   roundKey,
   index,
@@ -259,6 +260,14 @@ function MatchCard({
   const optionTeamsB = (candidateIdsB.length ? candidateIdsB.map((id) => teamMap[id]).filter(Boolean) : allTeams)
     .filter((team) => !blockedForB.has(team.id))
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+  const handleScoreInputChange = (slot, value) => {
+    if (!teamA || !teamB || typeof onSetMatchScore !== 'function') return;
+    const nextValue = value === '' ? '' : value.replace(/[^0-9]/g, '').slice(0, 1);
+    const nextScoreA = slot === 'A' ? nextValue : scoreA ?? '';
+    const nextScoreB = slot === 'B' ? nextValue : scoreB ?? '';
+    onSetMatchScore(roundKey, index, nextScoreA, nextScoreB);
+  };
 
   useEffect(() => {
     if (!prevCompleteRef.current && isComplete) {
@@ -358,10 +367,33 @@ function MatchCard({
           </div>
         )}
 
-        {teamA && teamB && (scoreA !== null || scoreB !== null) && (
-          <div className="mt-2 grid grid-cols-2 gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-1.5 text-center dark:border-[#1F2937] dark:bg-[#1A2235]">
-            <p className="text-sm font-black text-[#0F172A] dark:text-[#FFFFFF]">{scoreA ?? '-'}</p>
-            <p className="text-sm font-black text-[#0F172A] dark:text-[#FFFFFF]">{scoreB ?? '-'}</p>
+        {teamA && teamB && (
+          <div className="mt-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-1.5 dark:border-[#1F2937] dark:bg-[#1A2235]">
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                disabled={disabled}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={scoreA ?? ''}
+                onChange={(e) => handleScoreInputChange('A', e.target.value)}
+                className="min-h-10 w-full rounded-md border border-[#CBD5E1] bg-white px-2 text-center text-sm font-black text-[#0F172A] dark:border-[#25324A] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                placeholder="-"
+                aria-label={`Marcador ${teamA.name}`}
+              />
+              <input
+                disabled={disabled}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={scoreB ?? ''}
+                onChange={(e) => handleScoreInputChange('B', e.target.value)}
+                className="min-h-10 w-full rounded-md border border-[#CBD5E1] bg-white px-2 text-center text-sm font-black text-[#0F172A] dark:border-[#25324A] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                placeholder="-"
+                aria-label={`Marcador ${teamB.name}`}
+              />
+            </div>
+            {scoreA !== null && scoreB !== null && scoreA === scoreB && (
+              <p className="mt-1 text-center text-[10px] text-[#B45309] dark:text-[#FBBF24]">En eliminación no hay empate, ajusta el marcador.</p>
+            )}
           </div>
         )}
 
@@ -372,16 +404,19 @@ function MatchCard({
         )}
 
         {teamA && teamB && (
-          <select
-            disabled={disabled}
-            className="mt-2 min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-xs text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
-            value={match.winner || ''}
-            onChange={(e) => onPickWinner(roundKey, index, e.target.value)}
-          >
-            <option value="">Seleccionar ganador</option>
-            <option value={teamA.id}>{teamA.name}</option>
-            <option value={teamB.id}>{teamB.name}</option>
-          </select>
+          <>
+            <select
+              disabled={disabled}
+              className="mt-2 min-h-11 w-full rounded-md border border-[#E2E8F0] bg-white px-2 py-2 text-xs text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+              value={match.winner || ''}
+              onChange={(e) => onPickWinner(roundKey, index, e.target.value)}
+            >
+              <option value="">Seleccionar ganador (manual)</option>
+              <option value={teamA.id}>{teamA.name}</option>
+              <option value={teamB.id}>{teamB.name}</option>
+            </select>
+            <p className="mt-1 text-center text-[10px] text-[#64748B] dark:text-[#9CA3AF]">También puedes definir ganador por marcador.</p>
+          </>
         )}
       </motion.div>
 
@@ -396,6 +431,7 @@ export default function BracketView({
   outcomes,
   onPickWinner,
   onAutoSimulateRound,
+  onSetMatchScore,
   onSetMatchTeam,
   onResetMatch,
   stageLocked,
@@ -469,6 +505,9 @@ export default function BracketView({
       local: formatMatchScheduleLocal(schedule),
     };
   }, [mobileSheetMatch, mobileSheetRoundKey, mobileSheetMatchIndex]);
+
+  const mobileSheetScoreA = toMatchScore(mobileSheetMatch?.scoreA);
+  const mobileSheetScoreB = toMatchScore(mobileSheetMatch?.scoreB);
 
   const allTeamsSorted = useMemo(() => Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es')), [teamMap]);
 
@@ -825,6 +864,14 @@ export default function BracketView({
     if (!autoAdvanceEnabled) return;
     const nextRef = getNextMatchRef(roundKey, index);
     if (nextRef) setPendingAutoAdvance(nextRef);
+  };
+
+  const handleMobileSheetScoreChange = (slot, value) => {
+    if (!mobileSheetMatch?.teamA || !mobileSheetMatch?.teamB || typeof onSetMatchScore !== 'function') return;
+    const nextValue = value === '' ? '' : value.replace(/[^0-9]/g, '').slice(0, 1);
+    const nextScoreA = slot === 'A' ? nextValue : mobileSheetScoreA ?? '';
+    const nextScoreB = slot === 'B' ? nextValue : mobileSheetScoreB ?? '';
+    onSetMatchScore(mobileSheetRoundKey, mobileSheetMatchIndex, nextScoreA, nextScoreB);
   };
 
   const activateMatch = (match, roundKey, index) => {
@@ -1381,12 +1428,40 @@ export default function BracketView({
                 )}
 
                 {mobileSheetMatch.teamA && mobileSheetMatch.teamB && (
+                  <div className="mt-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-2 dark:border-[#1F2937] dark:bg-[#1A2235]">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={mobileSheetScoreA ?? ''}
+                        onChange={(e) => handleMobileSheetScoreChange('A', e.target.value)}
+                        className="min-h-[44px] w-full rounded-xl border border-[#CBD5E1] bg-white px-3 text-center text-lg font-black text-[#0F172A] dark:border-[#25324A] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                        placeholder="-"
+                        aria-label={`Marcador ${teamMap[mobileSheetMatch.teamA]?.name || 'Local'}`}
+                      />
+                      <input
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={mobileSheetScoreB ?? ''}
+                        onChange={(e) => handleMobileSheetScoreChange('B', e.target.value)}
+                        className="min-h-[44px] w-full rounded-xl border border-[#CBD5E1] bg-white px-3 text-center text-lg font-black text-[#0F172A] dark:border-[#25324A] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
+                        placeholder="-"
+                        aria-label={`Marcador ${teamMap[mobileSheetMatch.teamB]?.name || 'Visitante'}`}
+                      />
+                    </div>
+                    {mobileSheetScoreA !== null && mobileSheetScoreB !== null && mobileSheetScoreA === mobileSheetScoreB && (
+                      <p className="mt-1 text-center text-[11px] text-[#B45309] dark:text-[#FBBF24]">No se permite empate en eliminación.</p>
+                    )}
+                  </div>
+                )}
+
+                {mobileSheetMatch.teamA && mobileSheetMatch.teamB && (
                   <select
                     className="mt-3 min-h-[44px] w-full rounded-xl border border-[#E2E8F0] bg-white px-3 text-[#0F172A] dark:border-[#1F2937] dark:bg-[#141B2B] dark:text-[#FFFFFF]"
                     value={mobileSheetMatch.winner || ''}
                     onChange={(e) => handleWinnerSelection(mobileSheetRoundKey, mobileSheetMatchIndex, e.target.value)}
                   >
-                    <option value="">Seleccionar ganador</option>
+                    <option value="">Seleccionar ganador (manual)</option>
                     <option value={mobileSheetMatch.teamA}>{teamMap[mobileSheetMatch.teamA]?.name}</option>
                     <option value={mobileSheetMatch.teamB}>{teamMap[mobileSheetMatch.teamB]?.name}</option>
                   </select>
@@ -1514,6 +1589,7 @@ export default function BracketView({
                             index={sourceIndex}
                             disabled={false}
                             onPickWinner={handleWinnerSelection}
+                            onSetMatchScore={onSetMatchScore}
                             onSetMatchTeam={onSetMatchTeam}
                             active={selectedMatchId === match.id}
                             onActivate={() => activateMatch(match, roundKey, sourceIndex)}
@@ -1548,6 +1624,7 @@ export default function BracketView({
                           index={index}
                           disabled={false}
                           onPickWinner={handleWinnerSelection}
+                          onSetMatchScore={onSetMatchScore}
                           onSetMatchTeam={onSetMatchTeam}
                           active={selectedMatchId === match.id}
                           onActivate={() => activateMatch(match, 'final', index)}
@@ -1575,6 +1652,7 @@ export default function BracketView({
                           index={index}
                           disabled={false}
                           onPickWinner={handleWinnerSelection}
+                          onSetMatchScore={onSetMatchScore}
                           onSetMatchTeam={onSetMatchTeam}
                           active={selectedMatchId === match.id}
                           onActivate={() => activateMatch(match, 'third', index)}
@@ -1611,6 +1689,7 @@ export default function BracketView({
                             index={sourceIndex}
                             disabled={false}
                             onPickWinner={handleWinnerSelection}
+                            onSetMatchScore={onSetMatchScore}
                             onSetMatchTeam={onSetMatchTeam}
                             active={selectedMatchId === match.id}
                             onActivate={() => activateMatch(match, roundKey, sourceIndex)}
