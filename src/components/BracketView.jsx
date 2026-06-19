@@ -108,6 +108,11 @@ const formatSlotRuleHint = (slotText) => {
   return 'Cupo definido por reglas de siembra del torneo.';
 };
 
+const toMatchScore = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
 const getSlotCandidateIds = (slotText, outcomes) => {
   if (!slotText || !outcomes) return [];
 
@@ -230,6 +235,8 @@ function MatchCard({
 }) {
   const teamA = match.teamA ? teamMap[match.teamA] : null;
   const teamB = match.teamB ? teamMap[match.teamB] : null;
+  const scoreA = toMatchScore(match.scoreA);
+  const scoreB = toMatchScore(match.scoreB);
   const isComplete = Boolean(match.winner);
   const prevCompleteRef = useRef(isComplete);
   const [completionFlash, setCompletionFlash] = useState(false);
@@ -347,6 +354,13 @@ function MatchCard({
           <div className="space-y-2">
             <TeamPill team={teamA} compact />
             <TeamPill team={teamB} compact />
+          </div>
+        )}
+
+        {teamA && teamB && (scoreA !== null || scoreB !== null) && (
+          <div className="mt-2 grid grid-cols-2 gap-2 rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-1.5 text-center dark:border-[#1F2937] dark:bg-[#1A2235]">
+            <p className="text-sm font-black text-[#0F172A] dark:text-[#FFFFFF]">{scoreA ?? '-'}</p>
+            <p className="text-sm font-black text-[#0F172A] dark:text-[#FFFFFF]">{scoreB ?? '-'}</p>
           </div>
         )}
 
@@ -1205,6 +1219,8 @@ export default function BracketView({
                       {visibleEntries.map(({ match, sourceIndex }) => {
                         const teamA = match.teamA ? teamMap[match.teamA] : null;
                         const teamB = match.teamB ? teamMap[match.teamB] : null;
+                        const scoreA = toMatchScore(match.scoreA);
+                        const scoreB = toMatchScore(match.scoreB);
                         const winnerA = match.winner && teamA && match.winner === teamA.id;
                         const winnerB = match.winner && teamB && match.winner === teamB.id;
                         const isComplete = Boolean(match.winner);
@@ -1235,7 +1251,7 @@ export default function BracketView({
                                   {teamA ? <img src={`https://flagcdn.com/w40/${teamA.code}.png`} alt={teamA.name} className="h-5 w-5 rounded-full" /> : <span className="h-5 w-5 rounded-full bg-[#F1F5F9] dark:bg-[#1A2235]" />}
                                   <p className={`truncate text-base ${winnerA ? 'font-semibold text-[#0F172A] dark:text-[#FFFFFF]' : 'text-[#0F172A] dark:text-[#FFFFFF]'}`}>{teamA?.name || 'Por definir'}</p>
                                 </div>
-                                <span className={`text-xl font-bold ${winnerA ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[var(--muted-text-aa)] dark:text-[#6B7280]'}`}>{winnerA ? '1' : '-'}</span>
+                                <span className={`text-xl font-bold ${winnerA ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[var(--muted-text-aa)] dark:text-[#6B7280]'}`}>{scoreA ?? '-'}</span>
                               </div>
 
                               <div className="flex items-center justify-between">
@@ -1243,7 +1259,7 @@ export default function BracketView({
                                   {teamB ? <img src={`https://flagcdn.com/w40/${teamB.code}.png`} alt={teamB.name} className="h-5 w-5 rounded-full" /> : <span className="h-5 w-5 rounded-full bg-[#F1F5F9] dark:bg-[#1A2235]" />}
                                   <p className={`truncate text-base ${winnerB ? 'font-semibold text-[#0F172A] dark:text-[#FFFFFF]' : 'text-[#0F172A] dark:text-[#FFFFFF]'}`}>{teamB?.name || 'Por definir'}</p>
                                 </div>
-                                <span className={`text-xl font-bold ${winnerB ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[var(--muted-text-aa)] dark:text-[#6B7280]'}`}>{winnerB ? '1' : '-'}</span>
+                                <span className={`text-xl font-bold ${winnerB ? 'text-[#D97706] dark:text-[#FBBF24]' : 'text-[var(--muted-text-aa)] dark:text-[#6B7280]'}`}>{scoreB ?? '-'}</span>
                               </div>
 
                               <div className="flex items-center justify-between text-[12px] text-[#475569] dark:text-[#9CA3AF]">
