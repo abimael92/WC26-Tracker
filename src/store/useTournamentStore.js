@@ -505,8 +505,10 @@ export const useTournamentStore = create(
             return Math.max(0, Math.min(9, Math.trunc(numeric)));
           };
 
-          const scoreA = normalizeScore(scoreAInput);
-          const scoreB = normalizeScore(scoreBInput);
+          const rawScoreA = scoreAInput === undefined ? match.scoreA : scoreAInput;
+          const rawScoreB = scoreBInput === undefined ? match.scoreB : scoreBInput;
+          const scoreA = normalizeScore(rawScoreA);
+          const scoreB = normalizeScore(rawScoreB);
           const nextWinnerId =
             scoreA !== null && scoreB !== null && scoreA !== scoreB ? (scoreA > scoreB ? match.teamA : match.teamB) : null;
 
