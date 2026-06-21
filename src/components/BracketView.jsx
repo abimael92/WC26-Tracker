@@ -477,6 +477,8 @@ export default function BracketView({
   const cardRefs = useRef(new Map());
   const [connectorOverlay, setConnectorOverlay] = useState({ width: 0, height: 0, paths: [] });
   const [centerDecorPaths, setCenterDecorPaths] = useState({ gold: '', bronze: '' });
+  const [advancePathPulse, setAdvancePathPulse] = useState({ ids: [], token: 0 });
+  const prevWinnerByMatchRef = useRef(new Map());
 
   const selectedStandingTeam = selectedStandingTeamId ? teamMap[selectedStandingTeamId] : null;
   const selectedTeamGuidance = useMemo(
@@ -743,6 +745,41 @@ export default function BracketView({
 
     return links;
   }, [bracket]);
+
+  const activeAdvancePathIds = useMemo(() => new Set(advancePathPulse.ids), [advancePathPulse.ids]);
+
+  useEffect(() => {
+    const nextWinnerByMatch = new Map();
+    Object.values(bracket)
+      .flat()
+      .filter(Boolean)
+      .forEach((match) => {
+        nextWinnerByMatch.set(match.id, match.winner || '');
+      });
+
+    const newlyCompleted = new Set();
+    nextWinnerByMatch.forEach((winnerId, matchId) => {
+      const previousWinnerId = prevWinnerByMatchRef.current.get(matchId) || '';
+      if (!previousWinnerId && winnerId) newlyCompleted.add(matchId);
+    });
+
+    prevWinnerByMatchRef.current = nextWinnerByMatch;
+    if (!newlyCompleted.size) return;
+
+    const highlightedLinkIds = connectorLinks
+      .filter((link) => newlyCompleted.has(link.from))
+      .map((link) => link.id);
+
+    if (!highlightedLinkIds.length) return;
+
+    setAdvancePathPulse((prev) => ({ ids: highlightedLinkIds, token: prev.token + 1 }));
+
+    const timer = window.setTimeout(() => {
+      setAdvancePathPulse((prev) => (prev.ids.length ? { ids: [], token: prev.token } : prev));
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [bracket, connectorLinks]);
 
   const recalculateConnectorOverlay = useCallback(() => {
     const canvas = bracketCanvasRef.current;
@@ -1509,6 +1546,10 @@ export default function BracketView({
                       <stop offset="0%" stopColor="#38BDF8" />
                       <stop offset="100%" stopColor="#F6C453" />
                     </linearGradient>
+                    <linearGradient id="advancePathGlow" x1="0" x2="1">
+                      <stop offset="0%" stopColor="#22D3EE" />
+                      <stop offset="100%" stopColor="#10B981" />
+                    </linearGradient>
                     <linearGradient id="centerGold" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#FDE68A" />
                       <stop offset="100%" stopColor="#CA8A04" />
@@ -1559,6 +1600,22 @@ export default function BracketView({
                       strokeLinecap="round"
                     />
                   ))}
+
+                  {connectorOverlay.paths
+                    .filter((path) => activeAdvancePathIds.has(path.id))
+                    .map((path) => (
+                      <motion.path
+                        key={`advance-${advancePathPulse.token}-${path.id}`}
+                        d={path.d}
+                        stroke="url(#advancePathGlow)"
+                        fill="none"
+                        strokeWidth="6"
+                        strokeLinecap="round"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: [0, 1, 0] }}
+                        transition={{ duration: 0.9, ease: 'easeOut' }}
+                      />
+                    ))}
                 </svg>
 
                 <div
