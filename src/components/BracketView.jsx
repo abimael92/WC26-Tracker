@@ -1350,7 +1350,11 @@ export default function BracketView({
                         return (
                           <button
                             key={`compact-card-${match.id}`}
-                            className="w-full rounded-xl border border-[#E2E8F0] bg-white p-3 text-left shadow-[0_2px_6px_rgba(15,23,42,0.08)] active:bg-[#F1F5F9] dark:border-[#1F2937] dark:bg-[#141B2B]"
+                            className={`w-full rounded-xl border bg-white p-3 text-left shadow-[0_2px_6px_rgba(15,23,42,0.08)] transition-all active:bg-[#F1F5F9] dark:bg-[#141B2B] ${
+                              showAdvancePulse
+                                ? 'border-l-4 border-l-[#0EA5E9] border-[#38BDF8] ring-2 ring-[#67E8F9]/35 dark:border-l-[#67E8F9] dark:border-[#38BDF8]/70 dark:ring-[#22D3EE]/35'
+                                : 'border-[#E2E8F0] dark:border-[#1F2937]'
+                            }`}
                             onClick={() => handleOpenMobileSheet(roundKey, sourceIndex, match)}
                             onTouchStart={(e) => handleMobileTouchStart(e, roundKey, sourceIndex)}
                             onTouchEnd={(e) => handleMobileTouchEnd(e, roundKey, sourceIndex, match)}
