@@ -478,6 +478,7 @@ export default function BracketView({
   const [connectorOverlay, setConnectorOverlay] = useState({ width: 0, height: 0, paths: [] });
   const [centerDecorPaths, setCenterDecorPaths] = useState({ gold: '', bronze: '' });
   const [advancePathPulse, setAdvancePathPulse] = useState({ ids: [], token: 0 });
+  const [mobileAdvancePulse, setMobileAdvancePulse] = useState({ ids: [], token: 0 });
   const prevWinnerByMatchRef = useRef(new Map());
 
   const selectedStandingTeam = selectedStandingTeamId ? teamMap[selectedStandingTeamId] : null;
@@ -747,6 +748,7 @@ export default function BracketView({
   }, [bracket]);
 
   const activeAdvancePathIds = useMemo(() => new Set(advancePathPulse.ids), [advancePathPulse.ids]);
+  const activeMobileAdvanceIds = useMemo(() => new Set(mobileAdvancePulse.ids), [mobileAdvancePulse.ids]);
 
   useEffect(() => {
     const nextWinnerByMatch = new Map();
@@ -769,13 +771,16 @@ export default function BracketView({
     const highlightedLinkIds = connectorLinks
       .filter((link) => newlyCompleted.has(link.from))
       .map((link) => link.id);
+    const highlightedMatchIds = [...new Set(connectorLinks.filter((link) => newlyCompleted.has(link.from)).map((link) => link.from))];
 
     if (!highlightedLinkIds.length) return;
 
     setAdvancePathPulse((prev) => ({ ids: highlightedLinkIds, token: prev.token + 1 }));
+    setMobileAdvancePulse((prev) => ({ ids: highlightedMatchIds, token: prev.token + 1 }));
 
     const timer = window.setTimeout(() => {
       setAdvancePathPulse((prev) => (prev.ids.length ? { ids: [], token: prev.token } : prev));
+      setMobileAdvancePulse((prev) => (prev.ids.length ? { ids: [], token: prev.token } : prev));
     }, 900);
 
     return () => window.clearTimeout(timer);
@@ -1340,6 +1345,7 @@ export default function BracketView({
                         const winnerA = match.winner && teamA && match.winner === teamA.id;
                         const winnerB = match.winner && teamB && match.winner === teamB.id;
                         const isComplete = Boolean(match.winner);
+                        const showAdvancePulse = activeMobileAdvanceIds.has(match.id);
 
                         return (
                           <button
@@ -1380,7 +1386,19 @@ export default function BracketView({
 
                               <div className="flex items-center justify-between text-[12px] text-[#475569] dark:text-[#9CA3AF]">
                                 <span>{getScheduleText(roundKey, sourceIndex) || 'Sin horario'}</span>
-                                <span>Avanza el ganador →</span>
+                                {showAdvancePulse ? (
+                                  <motion.span
+                                    key={`mobile-advance-${mobileAdvancePulse.token}-${match.id}`}
+                                    initial={{ x: -4, opacity: 0.55 }}
+                                    animate={{ x: [0, 8, 0], opacity: [0.55, 1, 0.55] }}
+                                    transition={{ duration: 0.9, ease: 'easeOut' }}
+                                    className="font-semibold text-[#0EA5E9] dark:text-[#67E8F9]"
+                                  >
+                                    Avanza el ganador →
+                                  </motion.span>
+                                ) : (
+                                  <span>Avanza el ganador →</span>
+                                )}
                               </div>
                             </div>
                           </button>
