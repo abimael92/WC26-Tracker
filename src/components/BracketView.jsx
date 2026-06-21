@@ -61,6 +61,14 @@ const ROUND_BADGE_CLASSES = {
   final: 'border-[#CA8A04]/35 bg-[#FEF9C3] text-[#854D0E] dark:border-[#EAB308]/45 dark:bg-[#3A3215] dark:text-[#FDE047]',
   third: 'border-[#475569]/35 bg-[#E2E8F0] text-[#334155] dark:border-[#64748B]/45 dark:bg-[#1E293B] dark:text-[#CBD5E1]',
 };
+const ROUND_ANNOUNCE_LABELS = {
+  r32: '16avos',
+  r16: 'octavos',
+  qf: 'cuartos',
+  sf: 'semis',
+  final: 'la final',
+  third: 'tercer lugar',
+};
 
 const ACTIVE_MATCH_CLASSES = {
   r32: 'border-l-4 border-l-[#0EA5E9] border-[#0EA5E9] bg-[#ECFEFF] shadow-[0_8px_18px_rgba(14,165,233,0.2)] ring-2 ring-[#38BDF8]/30 dark:border-l-[#38BDF8] dark:border-[#38BDF8] dark:bg-[#0C2336] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#38BDF8]/35',
@@ -794,7 +802,7 @@ export default function BracketView({
         const nextLink = connectorLinks.find((link) => link.from === matchId);
         if (nextLink) {
           const destinationRound = roundByMatchId.get(nextLink.to);
-          const destinationLabel = ROUND_LABELS[destinationRound] || 'la siguiente ronda';
+          const destinationLabel = ROUND_ANNOUNCE_LABELS[destinationRound] || 'la siguiente ronda';
           return `${winnerName} avanza a ${destinationLabel}.`;
         }
 
@@ -805,7 +813,20 @@ export default function BracketView({
       .filter(Boolean);
 
     if (announcementParts.length) {
-      setLiveAnnouncement((prev) => ({ text: announcementParts.join(' '), token: prev.token + 1 }));
+      let text = announcementParts.join(' ');
+      if (announcementParts.length > 3) {
+        const champs = announcementParts.filter((line) => line.includes('campeón del torneo'));
+        const thirds = announcementParts.filter((line) => line.includes('tercer lugar'));
+        const advances = announcementParts.length - champs.length - thirds.length;
+
+        const summary = [];
+        if (advances > 0) summary.push(`${advances} equipos avanzan de ronda.`);
+        if (thirds.length) summary.push('Se definió el tercer lugar.');
+        if (champs.length) summary.push('Hay campeón del torneo.');
+        text = summary.join(' ');
+      }
+
+      setLiveAnnouncement((prev) => ({ text, token: prev.token + 1 }));
     }
 
     if (highlightedLinkIds.length) {
