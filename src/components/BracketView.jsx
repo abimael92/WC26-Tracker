@@ -51,6 +51,7 @@ const colorLegend = {
 
 const MOBILE_BRACKET_VIEW_STORAGE_KEY = 'fifa-mobile-bracket-view';
 const MOBILE_ROUND_TAB_STORAGE_KEY = 'fifa-mobile-round-tab';
+const ANNOUNCE_VERBOSITY_STORAGE_KEY = 'fifa-bracket-announce-verbosity';
 const ROUND_PROGRESS_ORDER = ['r32', 'r16', 'qf', 'sf', 'final'];
 const ROUND_AUTOSIM_ORDER = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
 const ROUND_BADGE_CLASSES = {
@@ -488,6 +489,11 @@ export default function BracketView({
   const [advancePathPulse, setAdvancePathPulse] = useState({ ids: [], token: 0 });
   const [mobileAdvancePulse, setMobileAdvancePulse] = useState({ ids: [], token: 0 });
   const [liveAnnouncement, setLiveAnnouncement] = useState({ text: '', token: 0 });
+  const [announceVerbosity, setAnnounceVerbosity] = useState(() => {
+    if (typeof window === 'undefined') return 'compact';
+    const saved = window.localStorage.getItem(ANNOUNCE_VERBOSITY_STORAGE_KEY);
+    return saved === 'detailed' ? 'detailed' : 'compact';
+  });
   const prevWinnerByMatchRef = useRef(new Map());
 
   const selectedStandingTeam = selectedStandingTeamId ? teamMap[selectedStandingTeamId] : null;
@@ -813,18 +819,22 @@ export default function BracketView({
       .filter(Boolean);
 
     if (announcementParts.length) {
-      let text = announcementParts.join(' ');
-      if (announcementParts.length > 3) {
-        const champs = announcementParts.filter((line) => line.includes('campeón del torneo'));
-        const thirds = announcementParts.filter((line) => line.includes('tercer lugar'));
-        const advances = announcementParts.length - champs.length - thirds.length;
+      const champs = announcementParts.filter((line) => line.includes('campeón del torneo'));
+      const thirds = announcementParts.filter((line) => line.includes('tercer lugar'));
+      const advances = announcementParts.length - champs.length - thirds.length;
 
-        const summary = [];
-        if (advances > 0) summary.push(`${advances} equipos avanzan de ronda.`);
-        if (thirds.length) summary.push('Se definió el tercer lugar.');
-        if (champs.length) summary.push('Hay campeón del torneo.');
-        text = summary.join(' ');
-      }
+      const summary = [];
+      if (advances > 0) summary.push(`${advances} equipos avanzan de ronda.`);
+      if (thirds.length) summary.push('Se definió el tercer lugar.');
+      if (champs.length) summary.push('Hay campeón del torneo.');
+      const compactText = summary.join(' ');
+
+      const text =
+        announceVerbosity === 'detailed'
+          ? announcementParts.join(' ')
+          : announcementParts.length > 1
+            ? compactText || announcementParts[0]
+            : announcementParts[0];
 
       setLiveAnnouncement((prev) => ({ text, token: prev.token + 1 }));
     }
@@ -853,7 +863,7 @@ export default function BracketView({
       if (visualTimer) window.clearTimeout(visualTimer);
       if (announcementTimer) window.clearTimeout(announcementTimer);
     };
-  }, [bracket, connectorLinks, teamMap]);
+  }, [announceVerbosity, bracket, connectorLinks, teamMap]);
 
   const recalculateConnectorOverlay = useCallback(() => {
     const canvas = bracketCanvasRef.current;
@@ -1036,6 +1046,11 @@ export default function BracketView({
   }, [mobileRoundTab]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(ANNOUNCE_VERBOSITY_STORAGE_KEY, announceVerbosity);
+  }, [announceVerbosity]);
+
+  useEffect(() => {
     if (!pendingAutoAdvance) return;
 
     const nextMatch = bracket[pendingAutoAdvance.roundKey]?.[pendingAutoAdvance.index];
@@ -1112,6 +1127,16 @@ export default function BracketView({
           }`}
         >
           Autoavance: {autoAdvanceEnabled ? 'Activado' : 'Desactivado'}
+        </button>
+        <button
+          onClick={() => setAnnounceVerbosity((value) => (value === 'compact' ? 'detailed' : 'compact'))}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+            announceVerbosity === 'detailed'
+              ? 'border-[#0EA5E9] bg-[#E0F2FE] text-[#0C4A6E] dark:border-[#38BDF8]/45 dark:bg-[#08273A] dark:text-[#7DD3FC]'
+              : 'border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
+          }`}
+        >
+          Anuncios: {announceVerbosity === 'detailed' ? 'Detallados' : 'Compactos'}
         </button>
         <button
           onClick={jumpToNextPendingMatch}
