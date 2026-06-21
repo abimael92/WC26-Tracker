@@ -1113,6 +1113,16 @@ export default function BracketView({
           Guía rápida
         </button>
         <button
+          onClick={() => setAnnounceVerbosity((value) => (value === 'compact' ? 'detailed' : 'compact'))}
+          className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+            announceVerbosity === 'detailed'
+              ? 'border-[#0EA5E9] bg-[#E0F2FE] text-[#0C4A6E] dark:border-[#38BDF8]/45 dark:bg-[#08273A] dark:text-[#7DD3FC]'
+              : 'border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
+          }`}
+        >
+          A11y: {announceVerbosity === 'detailed' ? 'Anuncios detallados' : 'Anuncios compactos'}
+        </button>
+        <button
           onClick={() => setShowScheduleView((value) => !value)}
           className="rounded-full border border-[#CBD5E1] bg-white px-3 py-1 text-xs text-[#334155] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]"
         >
@@ -1127,16 +1137,6 @@ export default function BracketView({
           }`}
         >
           Autoavance: {autoAdvanceEnabled ? 'Activado' : 'Desactivado'}
-        </button>
-        <button
-          onClick={() => setAnnounceVerbosity((value) => (value === 'compact' ? 'detailed' : 'compact'))}
-          className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-            announceVerbosity === 'detailed'
-              ? 'border-[#0EA5E9] bg-[#E0F2FE] text-[#0C4A6E] dark:border-[#38BDF8]/45 dark:bg-[#08273A] dark:text-[#7DD3FC]'
-              : 'border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
-          }`}
-        >
-          Anuncios: {announceVerbosity === 'detailed' ? 'Detallados' : 'Compactos'}
         </button>
         <button
           onClick={jumpToNextPendingMatch}
