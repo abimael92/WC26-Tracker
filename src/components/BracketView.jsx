@@ -479,6 +479,7 @@ export default function BracketView({
   const [centerDecorPaths, setCenterDecorPaths] = useState({ gold: '', bronze: '' });
   const [advancePathPulse, setAdvancePathPulse] = useState({ ids: [], token: 0 });
   const [mobileAdvancePulse, setMobileAdvancePulse] = useState({ ids: [], token: 0 });
+  const [liveAnnouncement, setLiveAnnouncement] = useState({ text: '', token: 0 });
   const prevWinnerByMatchRef = useRef(new Map());
 
   const selectedStandingTeam = selectedStandingTeamId ? teamMap[selectedStandingTeamId] : null;
@@ -751,6 +752,17 @@ export default function BracketView({
   const activeMobileAdvanceIds = useMemo(() => new Set(mobileAdvancePulse.ids), [mobileAdvancePulse.ids]);
 
   useEffect(() => {
+    const matchById = new Map();
+    const roundByMatchId = new Map();
+    Object.entries(bracket).forEach(([roundKey, matches]) => {
+      (matches || [])
+        .filter(Boolean)
+        .forEach((match) => {
+          matchById.set(match.id, match);
+          roundByMatchId.set(match.id, roundKey);
+        });
+    });
+
     const nextWinnerByMatch = new Map();
     Object.values(bracket)
       .flat()
@@ -768,23 +780,59 @@ export default function BracketView({
     prevWinnerByMatchRef.current = nextWinnerByMatch;
     if (!newlyCompleted.size) return;
 
-    const highlightedLinkIds = connectorLinks
-      .filter((link) => newlyCompleted.has(link.from))
-      .map((link) => link.id);
-    const highlightedMatchIds = [...new Set(connectorLinks.filter((link) => newlyCompleted.has(link.from)).map((link) => link.from))];
+    const highlightedLinks = connectorLinks.filter((link) => newlyCompleted.has(link.from));
+    const highlightedLinkIds = highlightedLinks.map((link) => link.id);
+    const highlightedMatchIds = [...new Set(highlightedLinks.map((link) => link.from))];
 
-    if (!highlightedLinkIds.length) return;
+    const announcementParts = [...newlyCompleted]
+      .map((matchId) => {
+        const match = matchById.get(matchId);
+        const winnerName = teamMap[match?.winner]?.name;
+        if (!winnerName) return null;
 
-    setAdvancePathPulse((prev) => ({ ids: highlightedLinkIds, token: prev.token + 1 }));
-    setMobileAdvancePulse((prev) => ({ ids: highlightedMatchIds, token: prev.token + 1 }));
+        const sourceRound = roundByMatchId.get(matchId);
+        const nextLink = connectorLinks.find((link) => link.from === matchId);
+        if (nextLink) {
+          const destinationRound = roundByMatchId.get(nextLink.to);
+          const destinationLabel = ROUND_LABELS[destinationRound] || 'la siguiente ronda';
+          return `${winnerName} avanza a ${destinationLabel}.`;
+        }
 
-    const timer = window.setTimeout(() => {
-      setAdvancePathPulse((prev) => (prev.ids.length ? { ids: [], token: prev.token } : prev));
-      setMobileAdvancePulse((prev) => (prev.ids.length ? { ids: [], token: prev.token } : prev));
-    }, 900);
+        if (sourceRound === 'final') return `${winnerName} es campeón del torneo.`;
+        if (sourceRound === 'third') return `${winnerName} gana el tercer lugar.`;
+        return `${winnerName} avanza.`;
+      })
+      .filter(Boolean);
 
-    return () => window.clearTimeout(timer);
-  }, [bracket, connectorLinks]);
+    if (announcementParts.length) {
+      setLiveAnnouncement((prev) => ({ text: announcementParts.join(' '), token: prev.token + 1 }));
+    }
+
+    if (highlightedLinkIds.length) {
+      setAdvancePathPulse((prev) => ({ ids: highlightedLinkIds, token: prev.token + 1 }));
+      setMobileAdvancePulse((prev) => ({ ids: highlightedMatchIds, token: prev.token + 1 }));
+    }
+
+    const visualTimer =
+      highlightedLinkIds.length > 0
+        ? window.setTimeout(() => {
+            setAdvancePathPulse((prev) => (prev.ids.length ? { ids: [], token: prev.token } : prev));
+            setMobileAdvancePulse((prev) => (prev.ids.length ? { ids: [], token: prev.token } : prev));
+          }, 900)
+        : null;
+
+    const announcementTimer =
+      announcementParts.length > 0
+        ? window.setTimeout(() => {
+            setLiveAnnouncement((prev) => (prev.text ? { text: '', token: prev.token } : prev));
+          }, 1500)
+        : null;
+
+    return () => {
+      if (visualTimer) window.clearTimeout(visualTimer);
+      if (announcementTimer) window.clearTimeout(announcementTimer);
+    };
+  }, [bracket, connectorLinks, teamMap]);
 
   const recalculateConnectorOverlay = useCallback(() => {
     const canvas = bracketCanvasRef.current;
@@ -1011,6 +1059,9 @@ export default function BracketView({
 
   return (
     <section className="space-y-4">
+      <p key={`live-announce-${liveAnnouncement.token}`} className="sr-only" aria-live="polite" aria-atomic="true">
+        {liveAnnouncement.text}
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-display text-3xl tracking-wide text-[#2563EB] dark:text-[#F6C453]">Fase Eliminatoria</h2>
         <button
