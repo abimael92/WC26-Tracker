@@ -484,6 +484,8 @@ export default function BracketView({
   const bracketCanvasRef = useRef(null);
   const bracketCenterRef = useRef(null);
   const cardRefs = useRef(new Map());
+  const mobileScoreInputARef = useRef(null);
+  const mobileScoreInputBRef = useRef(null);
   const [connectorOverlay, setConnectorOverlay] = useState({ width: 0, height: 0, paths: [] });
   const [centerDecorPaths, setCenterDecorPaths] = useState({ gold: '', bronze: '' });
   const [advancePathPulse, setAdvancePathPulse] = useState({ ids: [], token: 0 });
@@ -529,6 +531,26 @@ export default function BracketView({
 
   const mobileSheetScoreA = toMatchScore(mobileSheetMatch?.scoreA);
   const mobileSheetScoreB = toMatchScore(mobileSheetMatch?.scoreB);
+
+  useEffect(() => {
+    if (!showMobileMatchSheet || !mobileSheetMatch?.teamA || !mobileSheetMatch?.teamB) return;
+
+    const targetInput =
+      mobileSheetScoreA === null
+        ? mobileScoreInputARef.current
+        : mobileSheetScoreB === null
+          ? mobileScoreInputBRef.current
+          : mobileScoreInputARef.current;
+
+    if (!targetInput) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      targetInput.focus();
+      targetInput.select?.();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [showMobileMatchSheet, mobileSheetMatch?.id, mobileSheetMatch?.teamA, mobileSheetMatch?.teamB, mobileSheetScoreA, mobileSheetScoreB]);
 
   const allTeamsSorted = useMemo(() => Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es')), [teamMap]);
 
@@ -1592,6 +1614,7 @@ export default function BracketView({
                   <div className="mt-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-2 dark:border-[#1F2937] dark:bg-[#1A2235]">
                     <div className="grid grid-cols-2 gap-2">
                       <input
+                        ref={mobileScoreInputARef}
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={mobileSheetScoreA ?? ''}
@@ -1601,6 +1624,7 @@ export default function BracketView({
                         aria-label={`Marcador ${teamMap[mobileSheetMatch.teamA]?.name || 'Local'}`}
                       />
                       <input
+                        ref={mobileScoreInputBRef}
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={mobileSheetScoreB ?? ''}
