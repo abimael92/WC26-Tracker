@@ -145,6 +145,14 @@ export default function App() {
   };
 
   const numericInput = (value) => String(value || '').replace(/[^0-9]/g, '');
+  const emptyGoalRow = () => ({ team: '', player: '', minute: '', ownGoal: false, isPenalty: false });
+  const parseGoalsCount = (value) => {
+    const text = String(value ?? '').trim();
+    if (text === '') return 0;
+    const numeric = Number(text);
+    if (!Number.isFinite(numeric) || numeric < 0) return 0;
+    return Math.floor(numeric);
+  };
   const minuteInput = (value) => {
     let cleaned = String(value || '').replace(/[^0-9+]/g, '');
     cleaned = cleaned.replace(/\++/g, '+');
@@ -470,6 +478,24 @@ export default function App() {
     selectedFixture: selectedFixtureForSave,
   });
 
+  useEffect(() => {
+    const homeGoals = parseGoalsCount(saveForm.homeScore);
+    const awayGoals = parseGoalsCount(saveForm.awayScore);
+    const slots = [
+      ...Array.from({ length: homeGoals }, () => saveForm.homeTeam || ''),
+      ...Array.from({ length: awayGoals }, () => saveForm.awayTeam || ''),
+    ];
+
+    setGoalRows((prev) => {
+      if (!slots.length) return [];
+
+      return slots.map((team, index) => {
+        const prevRow = prev[index] || emptyGoalRow();
+        return { ...prevRow, team };
+      });
+    });
+  }, [saveForm.homeScore, saveForm.awayScore, saveForm.homeTeam, saveForm.awayTeam]);
+
   const upcomingMatches = useMemo(() => {
     const now = new Date();
     const scheduledMatches = flattenedMatches.map((match) => {
@@ -654,7 +680,7 @@ export default function App() {
       setIsSaveModalOpen(false);
       setSaveForm({ group: '', homeTeam: '', awayTeam: '', homeScore: '', awayScore: '', status: 'FT' });
       setSelectedFixtureKey('');
-      setGoalRows([{ team: '', player: '', minute: '', ownGoal: false, isPenalty: false }]);
+      setGoalRows([]);
     } catch (error) {
       console.warn('No se pudieron guardar los marcadores en Firebase.', error);
       setSaveModalError('No se pudo subir la información a Firebase.');
@@ -688,6 +714,34 @@ export default function App() {
       return;
     }
 
+    const expectedGoalsFromScore = homeScore + awayScore;
+
+    if (goalRows.length !== expectedGoalsFromScore) {
+      setSaveModalError(`Inconsistencia: marcador total ${expectedGoalsFromScore} pero hay ${goalRows.length} filas de gol.`);
+      return;
+    }
+
+    const missingGoalData = goalRows.some((row) => {
+      const team = String(row.team || '').trim();
+      const player = String(row.player || '').trim();
+      return !team || !player;
+    });
+
+    if (missingGoalData) {
+      setSaveModalError('Completa equipo y jugador en cada gol.');
+      return;
+    }
+
+    const homeGoalRows = goalRows.filter((row) => String(row.team || '').trim() === homeTeam).length;
+    const awayGoalRows = goalRows.filter((row) => String(row.team || '').trim() === awayTeam).length;
+
+    if (homeGoalRows !== homeScore || awayGoalRows !== awayScore) {
+      setSaveModalError(
+        `Los goles por equipo no cuadran. ${homeTeam}: ${homeGoalRows}/${homeScore}, ${awayTeam}: ${awayGoalRows}/${awayScore}.`
+      );
+      return;
+    }
+
     const rawGoals = goalRows
       .map((row) => ({
         team: String(row.team || '').trim(),
@@ -695,18 +749,11 @@ export default function App() {
         minute: String(row.minute || '').trim(),
         ownGoal: Boolean(row.ownGoal),
         isPenalty: Boolean(row.isPenalty),
-      }))
-      .filter((row) => row.team && row.player);
+      }));
 
     const hasInvalidMinute = rawGoals.some((row) => !isValidMinuteValue(row.minute));
     if (hasInvalidMinute) {
       setSaveModalError('Minuto inválido. Usa formato como 45, 90 o 45+2.');
-      return;
-    }
-
-    const expectedGoalsFromScore = homeScore + awayScore;
-    if (rawGoals.length !== expectedGoalsFromScore) {
-      setSaveModalError(`Inconsistencia: marcador total ${expectedGoalsFromScore} pero capturaste ${rawGoals.length} goles.`);
       return;
     }
 
@@ -734,14 +781,6 @@ export default function App() {
     setGoalRows((prev) => prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)));
   };
 
-  const addGoalRow = () => {
-    setGoalRows((prev) => [...prev, { team: '', player: '', minute: '', ownGoal: false, isPenalty: false }]);
-  };
-
-  const removeGoalRow = (index) => {
-    setGoalRows((prev) => (prev.length === 1 ? prev : prev.filter((_, rowIndex) => rowIndex !== index)));
-  };
-
   const openSaveModal = ({ prefillGoal } = {}) => {
     const prefilledPlayer = String(prefillGoal?.player || '').trim();
     const prefilledTeamRaw = String(prefillGoal?.team || '').trim();
@@ -751,7 +790,7 @@ export default function App() {
     const firstFixture = selectableFixtureOptions[0];
     if (!firstFixture) {
       setSelectedFixtureKey('');
-      setGoalRows([{ team: '', player: prefilledPlayer, minute: '', ownGoal: false, isPenalty: false }]);
+      setGoalRows([]);
       setSaveModalError('No hay partidos pendientes por guardar.');
       return;
     }
@@ -770,7 +809,18 @@ export default function App() {
       }
     }
 
-    setGoalRows([{ team: prefilledTeam, player: prefilledPlayer, minute: '', ownGoal: false, isPenalty: false }]);
+    setGoalRows((prev) => {
+      if (!prev.length) return prev;
+      const [first, ...rest] = prev;
+      return [
+        {
+          ...first,
+          team: first.team || prefilledTeam,
+          player: first.player || prefilledPlayer,
+        },
+        ...rest,
+      ];
+    });
   };
 
   const handleScorerClick = (scorer) => {
@@ -1249,21 +1299,23 @@ export default function App() {
               <div className="rounded-2xl border border-[#2E3B52] bg-[#111C31] p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-sm font-semibold uppercase tracking-[0.14em] text-[#A9B4C7]">Goles (equipo, jugador, minuto, OG, PEN)</p>
-                  <button
-                    type="button"
-                    onClick={addGoalRow}
-                    className="rounded-full border border-[#3B82F6] px-3 py-1.5 text-xs font-semibold text-[#8FB4FF] hover:bg-[#1A2740]"
-                  >
-                    + Agregar gol
-                  </button>
+                  <span className="rounded-full border border-[#35507B] px-3 py-1 text-xs font-semibold text-[#8FB4FF]">
+                    Total filas: {goalRows.length}
+                  </span>
                 </div>
 
                 <div className="space-y-2">
+                  {!goalRows.length ? (
+                    <p className="rounded-lg border border-dashed border-[#2E3B52] bg-[#0D1628] px-3 py-2 text-sm text-[#A9B4C7]">
+                      Sin goles. Si hay anotaciones, ingresa los goles de cada equipo para generar las filas automáticamente.
+                    </p>
+                  ) : null}
                   {goalRows.map((row, index) => (
                     <div key={`goal-row-${index}`} className="grid grid-cols-12 gap-2">
                       <select
                         value={row.team}
                         onChange={(e) => updateGoalRow(index, 'team', e.target.value)}
+                        disabled
                         className="col-span-3 rounded-lg border border-[#2E3B52] bg-[#0D1628] px-2.5 py-2 text-sm text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                       >
                         <option value="">Equipo</option>
@@ -1302,14 +1354,9 @@ export default function App() {
                         />
                         PEN
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => removeGoalRow(index)}
-                        className="col-span-1 rounded-lg border border-[#2E3B52] text-sm font-semibold text-[#D4D4D8] hover:bg-[#1A2740]"
-                        aria-label="Eliminar gol"
-                      >
-                        ×
-                      </button>
+                      <span className="col-span-1 flex items-center justify-center rounded-lg border border-[#2E3B52] bg-[#0B1425] text-[11px] font-semibold text-[#7A879D]">
+                        {index + 1}
+                      </span>
                     </div>
                   ))}
                 </div>
