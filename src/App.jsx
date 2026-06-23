@@ -223,14 +223,63 @@ export default function App() {
 
   const applyFixtureToSaveForm = (fixture) => {
     if (!fixture) return;
-    setSaveForm((prev) => ({
-      ...prev,
-      group: fixture.groupId || prev.group,
-      homeTeam: fixture.homeName || prev.homeTeam,
-      awayTeam: fixture.awayName || prev.awayTeam,
-      homeScore: fixture.homeGoals === '' ? prev.homeScore : String(fixture.homeGoals),
-      awayScore: fixture.awayGoals === '' ? prev.awayScore : String(fixture.awayGoals),
-    }));
+    setSaveForm((prev) => {
+      const next = {
+        ...prev,
+        group: fixture.groupId || prev.group,
+        homeTeam: fixture.homeName || prev.homeTeam,
+        awayTeam: fixture.awayName || prev.awayTeam,
+        homeScore: fixture.homeGoals === '' ? prev.homeScore : String(fixture.homeGoals),
+        awayScore: fixture.awayGoals === '' ? prev.awayScore : String(fixture.awayGoals),
+      };
+
+      const homeGoals = parseGoalsCount(next.homeScore);
+      const awayGoals = parseGoalsCount(next.awayScore);
+      const slots = [
+        ...Array.from({ length: homeGoals }, () => next.homeTeam || ''),
+        ...Array.from({ length: awayGoals }, () => next.awayTeam || ''),
+      ];
+
+      setGoalRows((prevRows) => {
+        if (!slots.length) return [];
+
+        return slots.map((team, index) => {
+          const prevRow = prevRows[index] || emptyGoalRow();
+          return { ...prevRow, team };
+        });
+      });
+
+      return next;
+    });
+  };
+
+  const updateSaveFormField = (field, value) => {
+    setSaveForm((prev) => {
+      const next = {
+        ...prev,
+        [field]: value,
+      };
+
+      if (field === 'homeScore' || field === 'awayScore' || field === 'homeTeam' || field === 'awayTeam') {
+        const homeGoals = parseGoalsCount(next.homeScore);
+        const awayGoals = parseGoalsCount(next.awayScore);
+        const slots = [
+          ...Array.from({ length: homeGoals }, () => next.homeTeam || ''),
+          ...Array.from({ length: awayGoals }, () => next.awayTeam || ''),
+        ];
+
+        setGoalRows((prevRows) => {
+          if (!slots.length) return [];
+
+          return slots.map((team, index) => {
+            const prevRow = prevRows[index] || emptyGoalRow();
+            return { ...prevRow, team };
+          });
+        });
+      }
+
+      return next;
+    });
   };
 
   const logLiveScoresSnapshot = (liveScores, appliedCount) => {
@@ -477,24 +526,6 @@ export default function App() {
     awayTeam: saveForm.awayTeam,
     selectedFixture: selectedFixtureForSave,
   });
-
-  useEffect(() => {
-    const homeGoals = parseGoalsCount(saveForm.homeScore);
-    const awayGoals = parseGoalsCount(saveForm.awayScore);
-    const slots = [
-      ...Array.from({ length: homeGoals }, () => saveForm.homeTeam || ''),
-      ...Array.from({ length: awayGoals }, () => saveForm.awayTeam || ''),
-    ];
-
-    setGoalRows((prev) => {
-      if (!slots.length) return [];
-
-      return slots.map((team, index) => {
-        const prevRow = prev[index] || emptyGoalRow();
-        return { ...prevRow, team };
-      });
-    });
-  }, [saveForm.homeScore, saveForm.awayScore, saveForm.homeTeam, saveForm.awayTeam]);
 
   const upcomingMatches = useMemo(() => {
     const now = new Date();
@@ -1216,7 +1247,7 @@ export default function App() {
                     <span className="mb-1 block text-sm font-semibold text-[#A9B4C7]">Fase *</span>
                     <select
                       value={saveForm.group}
-                      onChange={(e) => setSaveForm((prev) => ({ ...prev, group: e.target.value }))}
+                      onChange={(e) => updateSaveFormField('group', e.target.value)}
                       className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                     >
                       <option value="">Selecciona fase</option>
@@ -1235,7 +1266,7 @@ export default function App() {
                       <span className="mb-1 block text-sm font-semibold text-[#A9B4C7]">Equipo local *</span>
                       <select
                         value={saveForm.homeTeam}
-                        onChange={(e) => setSaveForm((prev) => ({ ...prev, homeTeam: e.target.value }))}
+                        onChange={(e) => updateSaveFormField('homeTeam', e.target.value)}
                         className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                       >
                         <option value="">Selecciona equipo local</option>
@@ -1251,7 +1282,7 @@ export default function App() {
                       <span className="mb-1 block text-sm font-semibold text-[#A9B4C7]">Goles local *</span>
                       <input
                         value={saveForm.homeScore}
-                        onChange={(e) => setSaveForm((prev) => ({ ...prev, homeScore: numericInput(e.target.value) }))}
+                        onChange={(e) => updateSaveFormField('homeScore', numericInput(e.target.value))}
                         className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5 text-base text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                         placeholder="3"
                         type="number"
@@ -1267,7 +1298,7 @@ export default function App() {
                       <span className="mb-1 block text-sm font-semibold text-[#A9B4C7]">Equipo visitante *</span>
                       <select
                         value={saveForm.awayTeam}
-                        onChange={(e) => setSaveForm((prev) => ({ ...prev, awayTeam: e.target.value }))}
+                        onChange={(e) => updateSaveFormField('awayTeam', e.target.value)}
                         className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5 text-base text-white focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                       >
                         <option value="">Selecciona equipo visitante</option>
@@ -1283,7 +1314,7 @@ export default function App() {
                       <span className="mb-1 block text-sm font-semibold text-[#A9B4C7]">Goles visitante *</span>
                       <input
                         value={saveForm.awayScore}
-                        onChange={(e) => setSaveForm((prev) => ({ ...prev, awayScore: numericInput(e.target.value) }))}
+                        onChange={(e) => updateSaveFormField('awayScore', numericInput(e.target.value))}
                         className="w-full rounded-xl border border-[#2E3B52] bg-[#111C31] px-3 py-2.5 text-base text-white placeholder:text-[#7A879D] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35"
                         placeholder="1"
                         type="number"
