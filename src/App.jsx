@@ -603,20 +603,22 @@ export default function App() {
         if (Boolean(goal?.ownGoal)) return;
 
         const player = String(goal?.player || '').trim();
-        if (!player) return;
+        const normalizedPlayer = normalizeName(player);
+        if (!normalizedPlayer) return;
 
         const team = String(goal?.team || '').trim() || 'N/D';
-        const key = `${player}__${team}`;
+        const normalizedTeam = normalizeName(team) || 'n/d';
+        const key = `${normalizedPlayer}__${normalizedTeam}`;
         const prev = scorerMap.get(key);
         const minuteRaw = String(goal?.minute ?? '').trim();
         const minute = minuteRaw || null;
         const matchHome = String(match?.homeTeam || '').trim();
         const matchAway = String(match?.awayTeam || '').trim();
-        const normalizedTeam = normalizeName(team);
+        const normalizedGoalTeam = normalizeName(team);
         const opponent =
-          normalizedTeam === normalizeName(matchHome)
+          normalizedGoalTeam === normalizeName(matchHome)
             ? matchAway
-            : normalizedTeam === normalizeName(matchAway)
+            : normalizedGoalTeam === normalizeName(matchAway)
               ? matchHome
               : '';
 
@@ -634,8 +636,8 @@ export default function App() {
         };
 
         scorerMap.set(key, {
-          player,
-          team,
+          player: prev?.player || player,
+          team: prev?.team || team,
           goals: (prev?.goals || 0) + 1,
           firstMinute: Math.min(prev?.firstMinute ?? Number.POSITIVE_INFINITY, parseMinuteForSort(minute)),
           goalEvents: [...(prev?.goalEvents || []), goalEvent],
