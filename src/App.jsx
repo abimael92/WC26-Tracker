@@ -607,8 +607,7 @@ export default function App() {
         if (!normalizedPlayer) return;
 
         const team = String(goal?.team || '').trim() || 'N/D';
-        const normalizedTeam = normalizeName(team) || 'n/d';
-        const key = `${normalizedPlayer}__${normalizedTeam}`;
+        const key = normalizedPlayer;
         const prev = scorerMap.get(key);
         const minuteRaw = String(goal?.minute ?? '').trim();
         const minute = minuteRaw || null;
@@ -637,7 +636,7 @@ export default function App() {
 
         scorerMap.set(key, {
           player: prev?.player || player,
-          team: prev?.team || team,
+          team: prev?.team && prev.team !== 'N/D' ? prev.team : team,
           goals: (prev?.goals || 0) + 1,
           firstMinute: Math.min(prev?.firstMinute ?? Number.POSITIVE_INFINITY, parseMinuteForSort(minute)),
           goalEvents: [...(prev?.goalEvents || []), goalEvent],
