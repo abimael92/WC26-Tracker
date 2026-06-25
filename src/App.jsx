@@ -916,8 +916,8 @@ export default function App() {
         </motion.header>
 
         <section className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-3xl border border-[#CBD5E1] bg-white/95 p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[linear-gradient(180deg,#141B2A_0%,#101520_100%)]">
-            <div className="mb-3 flex items-center justify-between">
+          <article className="rounded-3xl border border-[#CBD5E1] bg-white/95 p-4 shadow-[0_8px_22px_var(--shadow)] sm:p-5 dark:border-[#2C2C34] dark:bg-[linear-gradient(180deg,#141B2A_0%,#101520_100%)]">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Próximos partidos</p>
               <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#1D4ED8] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
                 Agenda
@@ -925,20 +925,20 @@ export default function App() {
             </div>
             <div className="mt-3 space-y-3">
               {upcomingMatches.map((match) => (
-                <div key={`upcoming-${match.id}`} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 transition-colors hover:bg-[#F1F5F9] dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div key={`upcoming-${match.id}`} className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-2.5 transition-colors hover:bg-[#F1F5F9] sm:p-3 dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]">
+                  <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs">
                     <span className="rounded-full bg-[#E2E8F0] px-2 py-0.5 font-semibold text-[#334155] dark:bg-[#1A2740] dark:text-[#D4D4D8]">Grupo {match.groupId}</span>
-                    <span className="w-full font-semibold text-[#2563EB] dark:text-[#8FB4FF] sm:w-auto sm:text-right">{formatUpcomingKickoff(match.kickoffAt)}</span>
+                    <span className="font-semibold text-[#2563EB] dark:text-[#8FB4FF]">{formatUpcomingKickoff(match.kickoffAt)}</span>
                   </div>
                   <div className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-[minmax(0,1fr)_58px_minmax(0,1fr)] sm:items-center">
                     <span className="flex min-w-0 items-center gap-2 font-semibold text-[#0F172A] dark:text-[#FAFAFA]">
                       <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.home]?.code}.png`} alt={teamMap[match.home]?.name} loading="lazy" />
                       <span className="truncate">{teamMap[match.home]?.name}</span>
                     </span>
-                    <span className="inline-flex w-fit items-center justify-center rounded-full border border-[#CBD5E1] px-2 py-0.5 text-center font-black text-[#334155] sm:mx-auto sm:w-[50px] dark:border-[#2E3B52] dark:text-[#D4D4D8]">vs.</span>
+                    <span className="inline-flex w-fit items-center justify-center justify-self-center rounded-full border border-[#CBD5E1] px-2 py-0.5 text-center font-black text-[#334155] sm:mx-auto sm:w-[50px] dark:border-[#2E3B52] dark:text-[#D4D4D8]">vs.</span>
                     <span className="flex min-w-0 items-center justify-start gap-2 text-left font-semibold text-[#0F172A] sm:justify-end sm:text-right dark:text-[#FAFAFA]">
-                      <span className="truncate">{teamMap[match.away]?.name}</span>
-                      <img className="h-5 w-5 rounded-full object-cover" src={`https://flagcdn.com/w40/${teamMap[match.away]?.code}.png`} alt={teamMap[match.away]?.name} loading="lazy" />
+                      <img className="h-5 w-5 rounded-full object-cover sm:order-2" src={`https://flagcdn.com/w40/${teamMap[match.away]?.code}.png`} alt={teamMap[match.away]?.name} loading="lazy" />
+                      <span className="truncate sm:order-1">{teamMap[match.away]?.name}</span>
                     </span>
                   </div>
                 </div>
