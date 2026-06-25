@@ -1,7 +1,7 @@
 {
-  "name": "fifa-2026-simulator",
+  "name": "wc26-tracker",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.5.8",
   "type": "module",
   "scripts": {
     "dev": "vite",

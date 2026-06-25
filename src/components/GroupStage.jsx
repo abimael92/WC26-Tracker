@@ -21,6 +21,9 @@ export default function GroupStage({
   const [activeMobileGroupIndex, setActiveMobileGroupIndex] = useState(0);
   const mobileGroupsScrollRef = useRef(null);
   const bestThirdIds = new Set(outcomes.bestThirds.map((entry) => entry.teamId));
+  const areAllGroupsComplete = groupIds.every((groupId) =>
+    (groupMatches[groupId] || []).every((match) => !isEmptyScore(match.homeGoals) && !isEmptyScore(match.awayGoals))
+  );
   const hasAnyManualPlacement = Boolean(
     manualGroupPlacements && Object.values(manualGroupPlacements).some((groupPlacement) => Object.keys(groupPlacement || {}).length)
   );
@@ -119,6 +122,9 @@ export default function GroupStage({
         {GROUPS.map((group, index) => {
           const standings = outcomes.standingsByGroup[group.id] || [];
           const hasManualPlacement = Boolean(manualGroupPlacements?.[group.id] && Object.keys(manualGroupPlacements[group.id]).length);
+          const isGroupComplete = (groupMatches[group.id] || []).every(
+            (match) => !isEmptyScore(match.homeGoals) && !isEmptyScore(match.awayGoals)
+          );
           return (
             <motion.article
               data-group-card={group.id}
@@ -166,8 +172,15 @@ export default function GroupStage({
                 <tbody>
                   {standings.map((row, idx) => {
                     const team = teamMap[row.teamId];
-                    const adv = idx < 2 || bestThirdIds.has(row.teamId);
-                    const eliminated = !adv;
+                    const isTopTwo = idx < 2;
+                    const isThird = idx === 2;
+                    const isFourth = idx === 3;
+                    const isBestThirdQualified = isThird && bestThirdIds.has(row.teamId);
+                    const waitingBestThird = isThird && !areAllGroupsComplete;
+                    const adv = isTopTwo || (isBestThirdQualified && areAllGroupsComplete);
+                    const eliminated =
+                      isGroupComplete &&
+                      (isFourth || (isThird && areAllGroupsComplete && !bestThirdIds.has(row.teamId)));
                     const isSelected = selectedTeamId === row.teamId;
                     const samePointsRows = standings.filter((entry) => entry.points === row.points);
                     const tieBreakByGd = samePointsRows.length > 1 && new Set(samePointsRows.map((entry) => entry.gd)).size > 1;
@@ -181,11 +194,19 @@ export default function GroupStage({
                     return (
                       <tr
                         key={row.teamId}
-                        className={`${adv ? 'text-[#059669] dark:text-[#10B981]' : 'text-[#475569] dark:text-[#9CA3AF]'} cursor-pointer border-b border-[#D8E2F0] dark:border-[#25324A] ${
+                        className={`${
+                          adv
+                            ? 'text-[#059669] dark:text-[#10B981]'
+                            : waitingBestThird
+                              ? 'text-[#B45309] dark:text-[#FBBF24]'
+                              : 'text-[#475569] dark:text-[#9CA3AF]'
+                        } cursor-pointer border-b border-[#D8E2F0] dark:border-[#25324A] ${
                           isSelected
                             ? 'bg-[#DBEAFE] font-semibold shadow-[inset_0_0_0_1px_rgba(37,99,235,0.45),inset_3px_0_0_0_#2563EB] dark:bg-[#1A2740] dark:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.55),inset_3px_0_0_0_#3B82F6]'
                             : eliminated
                               ? 'bg-[#FEF2F2] shadow-[inset_3px_0_0_0_#DC2626] hover:bg-[#FEE2E2] dark:bg-[#2A1418] dark:shadow-[inset_3px_0_0_0_#EF4444] dark:hover:bg-[#3A1217]'
+                              : waitingBestThird
+                                ? 'bg-[#FFFBEB] shadow-[inset_3px_0_0_0_#D97706] hover:bg-[#FEF3C7] dark:bg-[#2C2114] dark:shadow-[inset_3px_0_0_0_#F59E0B] dark:hover:bg-[#3A2A18]'
                               : 'odd:bg-[#F4F7FC] even:bg-white hover:bg-[#EEF3FB] dark:odd:bg-[#121A2B] dark:even:bg-[#121A2B] dark:hover:bg-[#1A2740]'
                         }`}
                         onClick={() => onSelectTeam?.(row.teamId)}
