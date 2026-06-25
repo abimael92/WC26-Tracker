@@ -80,6 +80,7 @@ export default function App() {
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [selectedScorer, setSelectedScorer] = useState(null);
+  const [visibleTopScorersCount, setVisibleTopScorersCount] = useState(5);
   const [selectedFixtureKey, setSelectedFixtureKey] = useState('');
   const [saveForm, setSaveForm] = useState({
     group: '',
@@ -658,6 +659,13 @@ export default function App() {
       .sort((a, b) => b.goals - a.goals || a.firstMinute - b.firstMinute || a.player.localeCompare(b.player, 'es'));
   }, [liveScoresFeed]);
 
+  useEffect(() => {
+    setVisibleTopScorersCount(5);
+  }, [topScorers.length]);
+
+  const visibleTopScorers = useMemo(() => topScorers.slice(0, visibleTopScorersCount), [topScorers, visibleTopScorersCount]);
+  const hasMoreTopScorers = visibleTopScorersCount < topScorers.length;
+
   const champion = useMemo(() => (bracket.champion ? teamMap[bracket.champion] : null), [bracket.champion, teamMap]);
 
   const searchableTeams = useMemo(
@@ -955,7 +963,7 @@ export default function App() {
             </div>
             <div className="mt-3 max-h-[340px] space-y-2 overflow-y-auto pb-2 pr-1.5 sm:max-h-[360px] sm:pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#E2E8F0] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#E2E8F0] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6] dark:[scrollbar-color:#3B82F6_#0F1626] dark:[&::-webkit-scrollbar-track]:bg-[#0F1626]">
               {topScorers.length ? (
-                topScorers.map((scorer, index) => (
+                visibleTopScorers.map((scorer, index) => (
                   <button
                     key={`${scorer.player}-${scorer.team}`}
                     type="button"
@@ -963,9 +971,23 @@ export default function App() {
                     className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#D5E3FF] bg-[#F8FAFC] px-2.5 py-2 text-left transition-colors hover:bg-[#EEF5FF] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35 sm:gap-3 sm:px-3 sm:py-2.5 dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[11px] font-black text-[#1E3A8A] sm:h-7 sm:w-7 sm:text-xs dark:bg-[#1A2740] dark:text-[#8FB4FF]">
-                        {index + 1}
-                      </span>
+                      {index === 0 ? (
+                        <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#FEF3C7] text-xs sm:h-7 sm:w-7 dark:bg-[#3A2F13]" aria-label="Primer lugar">
+                          🥇
+                        </span>
+                      ) : index === 1 ? (
+                        <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-xs sm:h-7 sm:w-7 dark:bg-[#273449]" aria-label="Segundo lugar">
+                          🥈
+                        </span>
+                      ) : index === 2 ? (
+                        <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#FCD9B6] text-xs sm:h-7 sm:w-7 dark:bg-[#3D2A1E]" aria-label="Tercer lugar">
+                          🥉
+                        </span>
+                      ) : (
+                        <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[11px] font-black text-[#1E3A8A] sm:h-7 sm:w-7 sm:text-xs dark:bg-[#1A2740] dark:text-[#8FB4FF]">
+                          {index + 1}
+                        </span>
+                      )}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold leading-tight text-[#0F172A] sm:text-[15px] dark:text-[#FAFAFA]">
                           {scorer.player}
@@ -980,6 +1002,15 @@ export default function App() {
                 ))
               ) : (
                 <p className="text-sm text-[#64748B] dark:text-[#A1A1AA]">Sin datos de goleadores todavía.</p>
+              )}
+              {hasMoreTopScorers && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleTopScorersCount((count) => Math.min(count + 5, topScorers.length))}
+                  className="mt-1 w-full rounded-xl border border-[#93C5FD] bg-[#EFF6FF] px-3 py-2 text-xs font-bold uppercase tracking-[0.08em] text-[#1E40AF] transition-colors hover:bg-[#DBEAFE] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
+                >
+                  Mostrar 5 más
+                </button>
               )}
             </div>
           </article>
