@@ -946,14 +946,14 @@ export default function App() {
             </div>
           </article>
 
-          <article className="rounded-3xl border border-[#CBD5E1] bg-white/95 p-5 shadow-[0_8px_22px_var(--shadow)] dark:border-[#2C2C34] dark:bg-[linear-gradient(180deg,#141B2A_0%,#101520_100%)]">
-            <div className="mb-3 flex items-center justify-between">
+          <article className="rounded-3xl border border-[#CBD5E1] bg-white/95 p-4 shadow-[0_8px_22px_var(--shadow)] sm:p-5 dark:border-[#2C2C34] dark:bg-[linear-gradient(180deg,#141B2A_0%,#101520_100%)]">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#64748B] dark:text-[#A1A1AA]">Goleadores</p>
               <span className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#1D4ED8] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
                 Ranking
               </span>
             </div>
-            <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pb-2 pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#E2E8F0] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#E2E8F0] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6] dark:[scrollbar-color:#3B82F6_#0F1626] dark:[&::-webkit-scrollbar-track]:bg-[#0F1626]">
+            <div className="mt-3 max-h-[340px] space-y-2 overflow-y-auto pb-2 pr-1.5 sm:max-h-[360px] sm:pr-2 [scrollbar-width:thin] [scrollbar-color:#3B82F6_#E2E8F0] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-[#E2E8F0] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#3B82F6] dark:[scrollbar-color:#3B82F6_#0F1626] dark:[&::-webkit-scrollbar-track]:bg-[#0F1626]">
               {topScorers.length ? (
                 topScorers.map((scorer, index) => (
                   <button
