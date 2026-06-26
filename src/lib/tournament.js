@@ -1,4 +1,5 @@
 import { GROUPS } from '../data/teams';
+import { ANNEX_C_ROWS, ANNEX_C_WINNERS } from '../data/annexCThirdPlaceTable';
 
 export const createTeamMap = () => {
   const map = {};
@@ -52,6 +53,51 @@ const emptyRow = (team) => ({
   strength: team.strength,
 });
 
+const baseStandingComparator = (a, b) => {
+  if (b.points !== a.points) return b.points - a.points;
+  if (b.gd !== a.gd) return b.gd - a.gd;
+  if (b.gf !== a.gf) return b.gf - a.gf;
+  return 0;
+};
+
+const stableTeamComparator = (a, b) => a.teamId.localeCompare(b.teamId);
+
+const buildHeadToHeadTable = (teamIds, groupMatches, toGoalValue) => {
+  const teamSet = new Set(teamIds);
+  const table = Object.fromEntries(
+    teamIds.map((teamId) => [teamId, { points: 0, gf: 0, ga: 0, gd: 0 }])
+  );
+
+  groupMatches.forEach((match) => {
+    if (!teamSet.has(match.home) || !teamSet.has(match.away)) return;
+
+    const hg = toGoalValue(match.homeGoals);
+    const ag = toGoalValue(match.awayGoals);
+    if (hg === null || ag === null) return;
+
+    const home = table[match.home];
+    const away = table[match.away];
+
+    home.gf += hg;
+    home.ga += ag;
+    away.gf += ag;
+    away.ga += hg;
+    home.gd = home.gf - home.ga;
+    away.gd = away.gf - away.ga;
+
+    if (hg > ag) {
+      home.points += 3;
+    } else if (ag > hg) {
+      away.points += 3;
+    } else {
+      home.points += 1;
+      away.points += 1;
+    }
+  });
+
+  return table;
+};
+
 export const calculateGroupStandings = (groupId, groupMatches, teamMap) => {
   const rows = {};
   GROUPS.find((group) => group.id === groupId)?.teams.forEach((team) => {
@@ -99,12 +145,41 @@ export const calculateGroupStandings = (groupId, groupMatches, teamMap) => {
     }
   });
 
-  return Object.values(rows).sort((a, b) => {
-    if (b.points !== a.points) return b.points - a.points;
-    if (b.gd !== a.gd) return b.gd - a.gd;
-    if (b.gf !== a.gf) return b.gf - a.gf;
-    return b.strength - a.strength;
-  });
+  const prelim = Object.values(rows).sort((a, b) => baseStandingComparator(a, b) || stableTeamComparator(a, b));
+  const resolved = [];
+
+  for (let i = 0; i < prelim.length; ) {
+    let j = i + 1;
+    while (j < prelim.length && baseStandingComparator(prelim[i], prelim[j]) === 0) {
+      j += 1;
+    }
+
+    const tieCluster = prelim.slice(i, j);
+    if (tieCluster.length === 1) {
+      resolved.push(tieCluster[0]);
+    } else {
+      const h2h = buildHeadToHeadTable(
+        tieCluster.map((row) => row.teamId),
+        groupMatches,
+        toGoalValue
+      );
+
+      resolved.push(
+        ...tieCluster.sort((a, b) => {
+          const headA = h2h[a.teamId];
+          const headB = h2h[b.teamId];
+          if (headB.points !== headA.points) return headB.points - headA.points;
+          if (headB.gd !== headA.gd) return headB.gd - headA.gd;
+          if (headB.gf !== headA.gf) return headB.gf - headA.gf;
+          return stableTeamComparator(a, b);
+        })
+      );
+    }
+
+    i = j;
+  }
+
+  return resolved;
 };
 
 export const computeGroupResults = (groupMatches, teamMap) => {
@@ -125,7 +200,7 @@ export const computeGroupResults = (groupMatches, teamMap) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.gd !== a.gd) return b.gd - a.gd;
     if (b.gf !== a.gf) return b.gf - a.gf;
-    return b.strength - a.strength;
+    return a.teamId.localeCompare(b.teamId);
   });
 
   return {
@@ -138,26 +213,34 @@ export const computeGroupResults = (groupMatches, teamMap) => {
 };
 
 const GROUP_ORDER = GROUPS.map((group) => group.id);
-const FIRST_HALF = GROUP_ORDER.slice(0, 6);
-const SECOND_HALF = GROUP_ORDER.slice(6);
-
-export const RUNNER_OPPONENT_RULES = Object.fromEntries(
-  GROUP_ORDER.map((groupId) => [groupId, FIRST_HALF.includes(groupId) ? SECOND_HALF : FIRST_HALF])
-);
+export const RUNNER_OPPONENT_RULES = {
+  A: ['B'],
+  B: ['A'],
+  C: ['F'],
+  D: ['G'],
+  E: ['I'],
+  F: ['C'],
+  G: ['D'],
+  H: ['J'],
+  I: ['E'],
+  J: ['H'],
+  K: ['L'],
+  L: ['K'],
+};
 
 export const WINNER_THIRD_RULES = {
-  A: ['B', 'C', 'D', 'E', 'F'],
-  B: ['A', 'C', 'D', 'E', 'F'],
-  C: ['A', 'B', 'D', 'E', 'F'],
-  D: ['A', 'B', 'C', 'E', 'F'],
+  A: ['C', 'E', 'F', 'H', 'I'],
+  B: ['E', 'F', 'G', 'I', 'J'],
+  C: [],
+  D: ['B', 'E', 'F', 'I', 'J'],
   E: ['A', 'B', 'C', 'D', 'F'],
-  F: ['A', 'B', 'C', 'D', 'E'],
-  G: ['H', 'I', 'J', 'K', 'L'],
-  H: ['G', 'I', 'J', 'K', 'L'],
-  I: ['G', 'H', 'J', 'K', 'L'],
-  J: ['G', 'H', 'I', 'K', 'L'],
-  K: ['G', 'H', 'I', 'J', 'L'],
-  L: ['G', 'H', 'I', 'J', 'K'],
+  F: [],
+  G: ['A', 'E', 'H', 'I', 'J'],
+  H: [],
+  I: ['C', 'D', 'F', 'G', 'H'],
+  J: [],
+  K: ['D', 'E', 'I', 'J', 'L'],
+  L: ['E', 'H', 'I', 'J', 'K'],
 };
 
 export const THIRD_TO_WINNER_RULES = Object.fromEntries(
@@ -167,80 +250,169 @@ export const THIRD_TO_WINNER_RULES = Object.fromEntries(
   ])
 );
 
-const shuffle = (items) => {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-};
-
-const inSameHalf = (groupA, groupB) =>
-  (FIRST_HALF.includes(groupA) && FIRST_HALF.includes(groupB)) ||
-  (SECOND_HALF.includes(groupA) && SECOND_HALF.includes(groupB));
-
-const assignThirdTeamsToWinners = (bestThirds) => {
-  const targetCount = Math.min(8, bestThirds.length);
-  let bestAssignment = {};
-
-  for (let attempt = 0; attempt < 80; attempt += 1) {
-    const availableThirds = shuffle(bestThirds);
-    const winners = shuffle(GROUP_ORDER);
-    const assignment = {};
-
-    winners.forEach((winnerGroup) => {
-      if (Object.keys(assignment).length >= targetCount) return;
-
-      const eligibleIndex = availableThirds.findIndex(
-        (third) => WINNER_THIRD_RULES[winnerGroup].includes(third.group) && third.group !== winnerGroup
-      );
-
-      if (eligibleIndex >= 0) {
-        const [picked] = availableThirds.splice(eligibleIndex, 1);
-        assignment[winnerGroup] = picked;
-      }
+const ANNEX_C_LOOKUP = new Map(
+  ANNEX_C_ROWS.map((row) => {
+    const byWinner = {};
+    ANNEX_C_WINNERS.forEach((winnerGroup, index) => {
+      byWinner[winnerGroup] = row[index];
     });
+    const comboKey = row.split('').sort().join('');
+    return [comboKey, byWinner];
+  })
+);
 
-    if (Object.keys(assignment).length > Object.keys(bestAssignment).length) {
-      bestAssignment = assignment;
-    }
+const R32_TEMPLATE = [
+  {
+    id: 'r32-1',
+    teamA: { type: 'runner', group: 'A' },
+    teamB: { type: 'runner', group: 'B' },
+    slotA: 'Espacio RUA: Reservado para el sublíder del Grupo A',
+    slotB: 'Espacio RUB: Reservado para el sublíder del Grupo B',
+    helpText: '2.º A vs 2.º B',
+  },
+  {
+    id: 'r32-2',
+    teamA: { type: 'winner', group: 'E' },
+    teamB: { type: 'third', winnerGroup: 'E', allowedGroups: ['A', 'B', 'C', 'D', 'F'] },
+    slotA: 'Espacio 1E: Reservado para el ganador del Grupo E',
+    slotB: 'Espacio 3ro-E: Mejor 3.er lugar de A/B/C/D/F (Anexo C)',
+    helpText: '1.º E vs mejor 3.º (A/B/C/D/F)',
+  },
+  {
+    id: 'r32-3',
+    teamA: { type: 'winner', group: 'F' },
+    teamB: { type: 'runner', group: 'C' },
+    slotA: 'Espacio 1F: Reservado para el ganador del Grupo F',
+    slotB: 'Espacio RUC: Reservado para el sublíder del Grupo C',
+    helpText: '1.º F vs 2.º C',
+  },
+  {
+    id: 'r32-4',
+    teamA: { type: 'winner', group: 'C' },
+    teamB: { type: 'runner', group: 'F' },
+    slotA: 'Espacio 1C: Reservado para el ganador del Grupo C',
+    slotB: 'Espacio RUF: Reservado para el sublíder del Grupo F',
+    helpText: '1.º C vs 2.º F',
+  },
+  {
+    id: 'r32-5',
+    teamA: { type: 'winner', group: 'I' },
+    teamB: { type: 'third', winnerGroup: 'I', allowedGroups: ['C', 'D', 'F', 'G', 'H'] },
+    slotA: 'Espacio 1I: Reservado para el ganador del Grupo I',
+    slotB: 'Espacio 3ro-I: Mejor 3.er lugar de C/D/F/G/H (Anexo C)',
+    helpText: '1.º I vs mejor 3.º (C/D/F/G/H)',
+  },
+  {
+    id: 'r32-6',
+    teamA: { type: 'runner', group: 'E' },
+    teamB: { type: 'runner', group: 'I' },
+    slotA: 'Espacio RUE: Reservado para el sublíder del Grupo E',
+    slotB: 'Espacio RUI: Reservado para el sublíder del Grupo I',
+    helpText: '2.º E vs 2.º I',
+  },
+  {
+    id: 'r32-7',
+    teamA: { type: 'winner', group: 'A' },
+    teamB: { type: 'third', winnerGroup: 'A', allowedGroups: ['C', 'E', 'F', 'H', 'I'] },
+    slotA: 'Espacio 1A: Reservado para el ganador del Grupo A',
+    slotB: 'Espacio 3ro-A: Mejor 3.er lugar de C/E/F/H/I (Anexo C)',
+    helpText: '1.º A vs mejor 3.º (C/E/F/H/I)',
+  },
+  {
+    id: 'r32-8',
+    teamA: { type: 'winner', group: 'L' },
+    teamB: { type: 'third', winnerGroup: 'L', allowedGroups: ['E', 'H', 'I', 'J', 'K'] },
+    slotA: 'Espacio 1L: Reservado para el ganador del Grupo L',
+    slotB: 'Espacio 3ro-L: Mejor 3.er lugar de E/H/I/J/K (Anexo C)',
+    helpText: '1.º L vs mejor 3.º (E/H/I/J/K)',
+  },
+  {
+    id: 'r32-9',
+    teamA: { type: 'winner', group: 'D' },
+    teamB: { type: 'third', winnerGroup: 'D', allowedGroups: ['B', 'E', 'F', 'I', 'J'] },
+    slotA: 'Espacio 1D: Reservado para el ganador del Grupo D',
+    slotB: 'Espacio 3ro-D: Mejor 3.er lugar de B/E/F/I/J (Anexo C)',
+    helpText: '1.º D vs mejor 3.º (B/E/F/I/J)',
+  },
+  {
+    id: 'r32-10',
+    teamA: { type: 'winner', group: 'G' },
+    teamB: { type: 'third', winnerGroup: 'G', allowedGroups: ['A', 'E', 'H', 'I', 'J'] },
+    slotA: 'Espacio 1G: Reservado para el ganador del Grupo G',
+    slotB: 'Espacio 3ro-G: Mejor 3.er lugar de A/E/H/I/J (Anexo C)',
+    helpText: '1.º G vs mejor 3.º (A/E/H/I/J)',
+  },
+  {
+    id: 'r32-11',
+    teamA: { type: 'runner', group: 'K' },
+    teamB: { type: 'runner', group: 'L' },
+    slotA: 'Espacio RUK: Reservado para el sublíder del Grupo K',
+    slotB: 'Espacio RUL: Reservado para el sublíder del Grupo L',
+    helpText: '2.º K vs 2.º L',
+  },
+  {
+    id: 'r32-12',
+    teamA: { type: 'winner', group: 'H' },
+    teamB: { type: 'runner', group: 'J' },
+    slotA: 'Espacio 1H: Reservado para el ganador del Grupo H',
+    slotB: 'Espacio RUJ: Reservado para el sublíder del Grupo J',
+    helpText: '1.º H vs 2.º J',
+  },
+  {
+    id: 'r32-13',
+    teamA: { type: 'winner', group: 'B' },
+    teamB: { type: 'third', winnerGroup: 'B', allowedGroups: ['E', 'F', 'G', 'I', 'J'] },
+    slotA: 'Espacio 1B: Reservado para el ganador del Grupo B',
+    slotB: 'Espacio 3ro-B: Mejor 3.er lugar de E/F/G/I/J (Anexo C)',
+    helpText: '1.º B vs mejor 3.º (E/F/G/I/J)',
+  },
+  {
+    id: 'r32-14',
+    teamA: { type: 'winner', group: 'J' },
+    teamB: { type: 'runner', group: 'H' },
+    slotA: 'Espacio 1J: Reservado para el ganador del Grupo J',
+    slotB: 'Espacio RUH: Reservado para el sublíder del Grupo H',
+    helpText: '1.º J vs 2.º H',
+  },
+  {
+    id: 'r32-15',
+    teamA: { type: 'winner', group: 'K' },
+    teamB: { type: 'third', winnerGroup: 'K', allowedGroups: ['D', 'E', 'I', 'J', 'L'] },
+    slotA: 'Espacio 1K: Reservado para el ganador del Grupo K',
+    slotB: 'Espacio 3ro-K: Mejor 3.er lugar de D/E/I/J/L (Anexo C)',
+    helpText: '1.º K vs mejor 3.º (D/E/I/J/L)',
+  },
+  {
+    id: 'r32-16',
+    teamA: { type: 'runner', group: 'D' },
+    teamB: { type: 'runner', group: 'G' },
+    slotA: 'Espacio RUD: Reservado para el sublíder del Grupo D',
+    slotB: 'Espacio RUG: Reservado para el sublíder del Grupo G',
+    helpText: '2.º D vs 2.º G',
+  },
+];
 
-    if (Object.keys(assignment).length === targetCount) {
-      return assignment;
-    }
-  }
+const resolveThirdAssignmentsFromAnnexC = (bestThirds = []) => {
+  const byGroup = Object.fromEntries(bestThirds.map((third) => [third.group, third]));
+  const comboKey = bestThirds
+    .map((third) => third.group)
+    .filter(Boolean)
+    .sort()
+    .join('');
 
-  return bestAssignment;
-};
+  const winnerToThirdGroup = ANNEX_C_LOOKUP.get(comboKey);
+  if (!winnerToThirdGroup) return {};
 
-const pullRunner = (pool, winnerGroup) => {
-  const candidateIndex = pool.findIndex(
-    (runner) => runner.group !== winnerGroup && !inSameHalf(runner.group, winnerGroup)
+  return Object.fromEntries(
+    Object.entries(winnerToThirdGroup).map(([winnerGroup, thirdGroup]) => [winnerGroup, byGroup[thirdGroup] ?? null])
   );
-  const fallbackIndex = pool.findIndex((runner) => runner.group !== winnerGroup);
-  const index = candidateIndex >= 0 ? candidateIndex : fallbackIndex;
-  if (index < 0) return null;
-  const [picked] = pool.splice(index, 1);
-  return picked;
 };
 
-const pairRemainingRunners = (runnerPool) => {
-  const pool = [...runnerPool];
-  const pairs = [];
-
-  while (pool.length >= 2) {
-    const left = pool.shift();
-    const oppositeIndex = pool.findIndex(
-      (runner) => runner.group !== left.group && !inSameHalf(runner.group, left.group)
-    );
-    const fallbackIndex = pool.findIndex((runner) => runner.group !== left.group);
-    const pickIndex = oppositeIndex >= 0 ? oppositeIndex : Math.max(0, fallbackIndex);
-    const right = pool.splice(pickIndex, 1)[0];
-    pairs.push([left, right]);
-  }
-
-  return pairs;
+const resolveBracketTeam = (slot, outcomes, thirdAssignments) => {
+  if (slot.type === 'winner') return outcomes.winners[slot.group] ?? null;
+  if (slot.type === 'runner') return outcomes.runners[slot.group] ?? null;
+  if (slot.type === 'third') return thirdAssignments[slot.winnerGroup]?.teamId ?? null;
+  return null;
 };
 
 const createRound = (size, key) =>
@@ -252,58 +424,33 @@ const createRound = (size, key) =>
     loser: null,
     scoreA: null,
     scoreB: null,
+    extraTimeScoreA: null,
+    extraTimeScoreB: null,
+    penaltiesA: null,
+    penaltiesB: null,
+    winnerMethod: null,
   }));
 
 export const buildBracket = (outcomes) => {
-  const thirdAssignments = assignThirdTeamsToWinners(outcomes.bestThirds);
-  const runnerPool = shuffle(
-    Object.entries(outcomes.runners).map(([group, teamId]) => ({
-      group,
-      teamId,
-    }))
-  );
+  const thirdAssignments = resolveThirdAssignmentsFromAnnexC(outcomes.bestThirds);
 
-  const r32 = [];
-
-  GROUP_ORDER.forEach((groupId, index) => {
-    const thirdPick = thirdAssignments[groupId];
-    const runnerPick = thirdPick ? null : pullRunner(runnerPool, groupId);
-    const opponentId = thirdPick?.teamId ?? runnerPick?.teamId ?? null;
-    const opponentLabel = thirdPick
-      ? `3.er lugar (${WINNER_THIRD_RULES[groupId].join('/')})`
-      : '2.º lugar (cruce)';
-
-    r32.push({
-      id: `r32-${index + 1}`,
-      teamA: outcomes.winners[groupId],
-      teamB: opponentId,
-      winner: null,
-      loser: null,
-      scoreA: null,
-      scoreB: null,
-      slotA: `Espacio ${groupId}1: Reservado para el ganador del Grupo ${groupId}`,
-      slotB: thirdPick
-        ? `Espacio 3ro-${groupId}: Reservado para el mejor 3.er lugar de los Grupos ${WINNER_THIRD_RULES[groupId].join('/')}`
-        : `Espacio R2-${groupId}: Reservado para el sublíder de los Grupos ${RUNNER_OPPONENT_RULES[groupId].join('/')}`,
-      helpText: `Ganador de ${groupId} vs ${opponentLabel}`,
-    });
-  });
-
-  const runnerPairs = pairRemainingRunners(runnerPool);
-  runnerPairs.slice(0, 4).forEach(([left, right], idx) => {
-    r32.push({
-      id: `r32-${13 + idx}`,
-      teamA: left?.teamId ?? null,
-      teamB: right?.teamId ?? null,
-      winner: null,
-      loser: null,
-      scoreA: null,
-      scoreB: null,
-      slotA: `Espacio R2-${left?.group ?? '?'}: Reservado para el sublíder del Grupo ${left?.group ?? '?'}`,
-      slotB: `Espacio R2-${right?.group ?? '?'}: Reservado para el sublíder del Grupo ${right?.group ?? '?'}`,
-      helpText: 'Cruce entre equipos de 2.º lugar',
-    });
-  });
+  const r32 = R32_TEMPLATE.map((matchTemplate) => ({
+    id: matchTemplate.id,
+    teamA: resolveBracketTeam(matchTemplate.teamA, outcomes, thirdAssignments),
+    teamB: resolveBracketTeam(matchTemplate.teamB, outcomes, thirdAssignments),
+    winner: null,
+    loser: null,
+    scoreA: null,
+    scoreB: null,
+    extraTimeScoreA: null,
+    extraTimeScoreB: null,
+    penaltiesA: null,
+    penaltiesB: null,
+    winnerMethod: null,
+    slotA: matchTemplate.slotA,
+    slotB: matchTemplate.slotB,
+    helpText: matchTemplate.helpText,
+  }));
 
   return {
     r32,
@@ -326,9 +473,28 @@ export const advanceWinner = (bracket, roundKey, matchIndex, winnerId, scoreData
 
   const nextRoundKey = rounds[roundKey];
   const match = bracket[roundKey][matchIndex];
+  if (winnerId !== match.teamA && winnerId !== match.teamB) {
+    return bracket;
+  }
   const loserId = match.teamA === winnerId ? match.teamB : match.teamA;
   const normalizedScoreA = Number.isFinite(Number(scoreData?.scoreA)) ? Number(scoreData.scoreA) : null;
   const normalizedScoreB = Number.isFinite(Number(scoreData?.scoreB)) ? Number(scoreData.scoreB) : null;
+  const normalizedEtScoreA =
+    Number.isFinite(Number(scoreData?.extraTimeScoreA)) ? Number(scoreData.extraTimeScoreA) : null;
+  const normalizedEtScoreB =
+    Number.isFinite(Number(scoreData?.extraTimeScoreB)) ? Number(scoreData.extraTimeScoreB) : null;
+  const normalizedPensA = Number.isFinite(Number(scoreData?.penaltiesA)) ? Number(scoreData.penaltiesA) : null;
+  const normalizedPensB = Number.isFinite(Number(scoreData?.penaltiesB)) ? Number(scoreData.penaltiesB) : null;
+  const winnerMethod =
+    typeof scoreData?.winnerMethod === 'string' && scoreData.winnerMethod.trim()
+      ? scoreData.winnerMethod.trim()
+      : normalizedScoreA !== null && normalizedScoreB !== null && normalizedScoreA !== normalizedScoreB
+        ? 'regulation'
+        : normalizedPensA !== null && normalizedPensB !== null
+          ? 'penalties'
+          : normalizedEtScoreA !== null && normalizedEtScoreB !== null
+            ? 'extra_time'
+            : null;
 
   bracket[roundKey][matchIndex] = {
     ...match,
@@ -336,6 +502,11 @@ export const advanceWinner = (bracket, roundKey, matchIndex, winnerId, scoreData
     loser: loserId,
     scoreA: normalizedScoreA,
     scoreB: normalizedScoreB,
+    extraTimeScoreA: normalizedEtScoreA,
+    extraTimeScoreB: normalizedEtScoreB,
+    penaltiesA: normalizedPensA,
+    penaltiesB: normalizedPensB,
+    winnerMethod,
   };
 
   if (roundKey === 'final') {

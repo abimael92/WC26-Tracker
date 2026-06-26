@@ -164,7 +164,7 @@ const applyManualPlacements = (outcomes, manualGroupPlacements = {}) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.gd !== a.gd) return b.gd - a.gd;
     if (b.gf !== a.gf) return b.gf - a.gf;
-    return b.strength - a.strength;
+    return a.teamId.localeCompare(b.teamId);
   });
 
   return {
@@ -186,6 +186,18 @@ const recomputeTournament = (groupMatches, teamsMap, manualGroupPlacements, stag
 
 const buildBlankBracket = (outcomes) => {
   const seededBracket = buildBracket(outcomes);
+  const clearMatchOutcome = (match = {}) => ({
+    ...match,
+    winner: null,
+    loser: null,
+    scoreA: null,
+    scoreB: null,
+    extraTimeScoreA: null,
+    extraTimeScoreB: null,
+    penaltiesA: null,
+    penaltiesB: null,
+    winnerMethod: null,
+  });
   const clearRound = (matches = []) => matches.map((match) => ({
     ...match,
     teamA: null,
@@ -194,11 +206,16 @@ const buildBlankBracket = (outcomes) => {
     loser: null,
     scoreA: null,
     scoreB: null,
+    extraTimeScoreA: null,
+    extraTimeScoreB: null,
+    penaltiesA: null,
+    penaltiesB: null,
+    winnerMethod: null,
   }));
 
   return {
     ...seededBracket,
-    r32: clearRound(seededBracket.r32),
+    r32: (seededBracket.r32 || []).map((match) => clearMatchOutcome(match)),
     r16: clearRound(seededBracket.r16),
     qf: clearRound(seededBracket.qf),
     sf: clearRound(seededBracket.sf),
@@ -232,6 +249,66 @@ const buildSequentialPlacement = (groupId, placement = {}) => {
   }
 
   return normalized;
+};
+
+const getSlotCandidateIds = (slotText, outcomes) => {
+  if (!slotText || !outcomes) return [];
+
+  const unique = (teamIds) => [...new Set(teamIds.filter(Boolean))];
+  const winnerByGroup = outcomes.winners || {};
+  const runnerByGroup = outcomes.runners || {};
+  const qualifyingThirdsByGroup = Object.fromEntries(
+    (outcomes.bestThirds || []).map((entry) => [entry.group, entry.teamId])
+  );
+
+  const winnerMatch = slotText.match(/ganador del Grupo\s+([A-L])/i);
+  if (winnerMatch) {
+    return unique([winnerByGroup[winnerMatch[1]]]);
+  }
+
+  const bestThirdMatch = slotText.match(/mejor 3\.er lugar de los Grupos\s+([A-L/]+)/i);
+  if (bestThirdMatch) {
+    const groups = bestThirdMatch[1].split('/');
+    return unique(groups.map((group) => qualifyingThirdsByGroup[group]));
+  }
+
+  const runnerGroupsMatch = slotText.match(/sublíder de los Grupos\s+([A-L/]+)/i);
+  if (runnerGroupsMatch) {
+    return unique(runnerGroupsMatch[1].split('/').map((group) => runnerByGroup[group]));
+  }
+
+  const runnerGroupMatch = slotText.match(/sublíder del Grupo\s+([A-L])/i);
+  if (runnerGroupMatch) {
+    return unique([runnerByGroup[runnerGroupMatch[1]]]);
+  }
+
+  return [];
+};
+
+const clearMatchData = (match) => ({
+  ...match,
+  teamA: null,
+  teamB: null,
+  winner: null,
+  loser: null,
+  scoreA: null,
+  scoreB: null,
+  extraTimeScoreA: null,
+  extraTimeScoreB: null,
+  penaltiesA: null,
+  penaltiesB: null,
+  winnerMethod: null,
+});
+
+const clearDownstreamRounds = (bracket, roundKey) => {
+  const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
+  const start = order.indexOf(roundKey);
+  if (start === -1) return;
+
+  order.slice(start + 1).forEach((key) => {
+    if (!Array.isArray(bracket[key])) return;
+    bracket[key] = bracket[key].map(clearMatchData);
+  });
 };
 
 const isLegacyZeroInitializedGroupMatches = (groupMatches = {}) => {
@@ -451,6 +528,15 @@ export const useTournamentStore = create(
 
           const match = round[matchIndex];
           const nextValue = teamId || null;
+
+          if (roundKey === 'r32' && nextValue) {
+            const slotLabel = slotKey === 'teamA' ? match.slotA : match.slotB;
+            const candidateIds = getSlotCandidateIds(slotLabel, state.outcomes);
+            if (candidateIds.length && !candidateIds.includes(nextValue)) {
+              return state;
+            }
+          }
+
           const updatedMatch = {
             ...match,
             [slotKey]: nextValue,
@@ -458,6 +544,11 @@ export const useTournamentStore = create(
             loser: null,
             scoreA: null,
             scoreB: null,
+            extraTimeScoreA: null,
+            extraTimeScoreB: null,
+            penaltiesA: null,
+            penaltiesB: null,
+            winnerMethod: null,
           };
 
           if (updatedMatch.teamA && updatedMatch.teamA === updatedMatch.teamB) {
@@ -467,11 +558,76 @@ export const useTournamentStore = create(
           round[matchIndex] = updatedMatch;
 
           if (roundKey === 'r32') {
-            bracket.r16 = bracket.r16.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
-            bracket.qf = bracket.qf.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
-            bracket.sf = bracket.sf.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
-            bracket.third = bracket.third.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
-            bracket.final = bracket.final.map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+            bracket.r16 = bracket.r16.map((m) => ({
+              ...m,
+              teamA: null,
+              teamB: null,
+              winner: null,
+              loser: null,
+              scoreA: null,
+              scoreB: null,
+              extraTimeScoreA: null,
+              extraTimeScoreB: null,
+              penaltiesA: null,
+              penaltiesB: null,
+              winnerMethod: null,
+            }));
+            bracket.qf = bracket.qf.map((m) => ({
+              ...m,
+              teamA: null,
+              teamB: null,
+              winner: null,
+              loser: null,
+              scoreA: null,
+              scoreB: null,
+              extraTimeScoreA: null,
+              extraTimeScoreB: null,
+              penaltiesA: null,
+              penaltiesB: null,
+              winnerMethod: null,
+            }));
+            bracket.sf = bracket.sf.map((m) => ({
+              ...m,
+              teamA: null,
+              teamB: null,
+              winner: null,
+              loser: null,
+              scoreA: null,
+              scoreB: null,
+              extraTimeScoreA: null,
+              extraTimeScoreB: null,
+              penaltiesA: null,
+              penaltiesB: null,
+              winnerMethod: null,
+            }));
+            bracket.third = bracket.third.map((m) => ({
+              ...m,
+              teamA: null,
+              teamB: null,
+              winner: null,
+              loser: null,
+              scoreA: null,
+              scoreB: null,
+              extraTimeScoreA: null,
+              extraTimeScoreB: null,
+              penaltiesA: null,
+              penaltiesB: null,
+              winnerMethod: null,
+            }));
+            bracket.final = bracket.final.map((m) => ({
+              ...m,
+              teamA: null,
+              teamB: null,
+              winner: null,
+              loser: null,
+              scoreA: null,
+              scoreB: null,
+              extraTimeScoreA: null,
+              extraTimeScoreB: null,
+              penaltiesA: null,
+              penaltiesB: null,
+              winnerMethod: null,
+            }));
             bracket.champion = null;
           }
 
@@ -484,6 +640,10 @@ export const useTournamentStore = create(
           const bracket = structuredClone(state.bracket);
           const match = bracket[roundKey]?.[matchIndex];
           if (!match?.teamA || !match?.teamB) return state;
+          if (match.winner && match.winner !== winnerId) {
+            clearDownstreamRounds(bracket, roundKey);
+            bracket.champion = null;
+          }
           const updated = advanceWinner(bracket, roundKey, matchIndex, winnerId, scoreData);
           return {
             bracket: updated,
@@ -518,12 +678,30 @@ export const useTournamentStore = create(
             loser: null,
             scoreA,
             scoreB,
+            extraTimeScoreA: null,
+            extraTimeScoreB: null,
+            penaltiesA: null,
+            penaltiesB: null,
+            winnerMethod: null,
           };
 
           if (match.winner !== nextWinnerId) {
             const clearRound = (key) => {
               if (!Array.isArray(bracket[key])) return;
-              bracket[key] = bracket[key].map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+              bracket[key] = bracket[key].map((m) => ({
+                ...m,
+                teamA: null,
+                teamB: null,
+                winner: null,
+                loser: null,
+                scoreA: null,
+                scoreB: null,
+                extraTimeScoreA: null,
+                extraTimeScoreB: null,
+                penaltiesA: null,
+                penaltiesB: null,
+                winnerMethod: null,
+              }));
             };
 
             const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
@@ -560,11 +738,29 @@ export const useTournamentStore = create(
             loser: null,
             scoreA: null,
             scoreB: null,
+            extraTimeScoreA: null,
+            extraTimeScoreB: null,
+            penaltiesA: null,
+            penaltiesB: null,
+            winnerMethod: null,
           };
 
           const clearRound = (key) => {
             if (!Array.isArray(bracket[key])) return;
-            bracket[key] = bracket[key].map((m) => ({ ...m, teamA: null, teamB: null, winner: null, loser: null, scoreA: null, scoreB: null }));
+            bracket[key] = bracket[key].map((m) => ({
+              ...m,
+              teamA: null,
+              teamB: null,
+              winner: null,
+              loser: null,
+              scoreA: null,
+              scoreB: null,
+              extraTimeScoreA: null,
+              extraTimeScoreB: null,
+              penaltiesA: null,
+              penaltiesB: null,
+              winnerMethod: null,
+            }));
           };
 
           const order = ['r32', 'r16', 'qf', 'sf', 'third', 'final'];
@@ -595,19 +791,29 @@ export const useTournamentStore = create(
           const teamB = state.teamMap[match.teamB];
           if (!teamA || !teamB) return;
 
-          const winner = chooseWinner(teamA, teamB);
-          let [scoreA, scoreB] = simulateScore(teamA, teamB);
-          if (scoreA === scoreB) {
-            if (winner === match.teamA) {
-              scoreA += 1;
-            } else {
-              scoreB += 1;
-            }
+          const [scoreA, scoreB] = simulateScore(teamA, teamB);
+          if (scoreA !== scoreB) {
+            const winner = scoreA > scoreB ? match.teamA : match.teamB;
+            get().setWinner(roundKey, index, winner, {
+              scoreA,
+              scoreB,
+              winnerMethod: 'regulation',
+            });
+            return;
           }
+
+          const winner = chooseWinner(teamA, teamB);
+          const penaltiesA = winner === match.teamA ? 5 : 4;
+          const penaltiesB = winner === match.teamB ? 5 : 4;
 
           get().setWinner(roundKey, index, winner, {
             scoreA,
             scoreB,
+            extraTimeScoreA: 0,
+            extraTimeScoreB: 0,
+            penaltiesA,
+            penaltiesB,
+            winnerMethod: 'penalties',
           });
         });
       },
