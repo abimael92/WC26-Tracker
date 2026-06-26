@@ -358,13 +358,14 @@ export default function GroupStage({
             const team = teamMap[entry.teamId];
             const qualified = idx < 8;
             const isBubbleSpot = !areAllGroupsComplete && (idx === 6 || idx === 7);
-            const shouldAnimateBubble = isBubbleSpot && !isMobileViewport;
-            const bubbleGlowAnimation = shouldAnimateBubble
+            const shouldAnimateBubble = isBubbleSpot;
+            const animateCardBubble = isBubbleSpot && !isMobileViewport;
+            const bubbleGlowAnimation = animateCardBubble
               ? {
                   boxShadow: ['0 0 0 rgba(245,158,11,0)', '0 0 0 2px rgba(245,158,11,0.25)', '0 0 0 rgba(245,158,11,0)'],
                 }
               : undefined;
-            const bubbleGlowTransition = shouldAnimateBubble
+            const bubbleGlowTransition = animateCardBubble
               ? {
                   duration: 2.2,
                   repeat: Infinity,
@@ -373,12 +374,14 @@ export default function GroupStage({
               : undefined;
             const chipGlowAnimation = shouldAnimateBubble
               ? {
-                  boxShadow: ['0 0 0 0 rgba(245,158,11,0)', '0 0 0 3px rgba(245,158,11,0.35)', '0 0 0 0 rgba(245,158,11,0)'],
+                  boxShadow: isMobileViewport
+                    ? ['0 0 0 0 rgba(245,158,11,0)', '0 0 0 2px rgba(245,158,11,0.22)', '0 0 0 0 rgba(245,158,11,0)']
+                    : ['0 0 0 0 rgba(245,158,11,0)', '0 0 0 3px rgba(245,158,11,0.35)', '0 0 0 0 rgba(245,158,11,0)'],
                 }
               : undefined;
             const chipGlowTransition = shouldAnimateBubble
               ? {
-                  duration: 1.8,
+                  duration: isMobileViewport ? 2.6 : 1.8,
                   repeat: Infinity,
                   ease: 'easeInOut',
                 }
@@ -428,29 +431,31 @@ export default function GroupStage({
                   />
                   <p className="truncate text-sm font-semibold text-[#0F172A] sm:text-base dark:text-[#FFFFFF]">{team.name}</p>
                 </div>
-                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.07em] text-[#475569] sm:mb-2 sm:text-xs sm:tracking-[0.08em] dark:text-[#9CA3AF]">Grupo {entry.group}</p>
-                <div className="flex items-center gap-1 text-[11px] font-semibold sm:gap-1.5 sm:text-xs">
-                  <motion.span
-                    className={chipClasses}
-                    animate={chipGlowAnimation}
-                    transition={chipGlowTransition}
-                  >
-                    PTS {entry.points}
-                  </motion.span>
-                  <motion.span
-                    className={chipClasses}
-                    animate={chipGlowAnimation}
-                    transition={chipGlowTransition}
-                  >
-                    DG {entry.gd}
-                  </motion.span>
-                  <motion.span
-                    className={chipClasses}
-                    animate={chipGlowAnimation}
-                    transition={chipGlowTransition}
-                  >
-                    GF {entry.gf}
-                  </motion.span>
+                <div className="mt-1.5 flex items-center justify-between gap-2 rounded-md border border-[#E2E8F0] bg-[#FFF7ED]/60 px-2 py-1 sm:mt-0 sm:block sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 dark:border-[#334155] dark:bg-[#1A2235]/65 dark:sm:bg-transparent">
+                  <p className="mb-0 text-[10px] font-medium uppercase tracking-[0.07em] text-[#475569] sm:mb-2 sm:text-xs sm:tracking-[0.08em] dark:text-[#9CA3AF]">Grupo {entry.group}</p>
+                  <div className="flex items-center gap-1 text-[11px] font-semibold sm:gap-1.5 sm:text-xs">
+                    <motion.span
+                      className={chipClasses}
+                      animate={chipGlowAnimation}
+                      transition={chipGlowTransition}
+                    >
+                      PTS {entry.points}
+                    </motion.span>
+                    <motion.span
+                      className={chipClasses}
+                      animate={chipGlowAnimation}
+                      transition={chipGlowTransition}
+                    >
+                      DG {entry.gd}
+                    </motion.span>
+                    <motion.span
+                      className={chipClasses}
+                      animate={chipGlowAnimation}
+                      transition={chipGlowTransition}
+                    >
+                      GF {entry.gf}
+                    </motion.span>
+                  </div>
                 </div>
               </motion.div>
             );
