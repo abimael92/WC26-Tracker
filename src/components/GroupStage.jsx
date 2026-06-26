@@ -147,7 +147,6 @@ export default function GroupStage({
                       Limpiar orden
                     </button>
                   )}
-                  <span className="text-xs text-[var(--muted-text-aa)] dark:text-[#7A879D]">Tabla en vivo</span>
                 </div>
               </header>
 
@@ -268,11 +267,37 @@ export default function GroupStage({
               <div className="space-y-2">
                 {groupMatches[group.id].map((match) => {
                   const hasIncompleteScore = isEmptyScore(match.homeGoals) !== isEmptyScore(match.awayGoals);
+                  const hasCompleteScore = !isEmptyScore(match.homeGoals) && !isEmptyScore(match.awayGoals);
+                  const homeScore = hasCompleteScore ? Number(match.homeGoals) : null;
+                  const awayScore = hasCompleteScore ? Number(match.awayGoals) : null;
+                  const isDraw = hasCompleteScore && homeScore === awayScore;
+                  const homeWon = hasCompleteScore && homeScore > awayScore;
+                  const awayWon = hasCompleteScore && awayScore > homeScore;
+
+                  const getScoreInputClasses = (sideWon, sideLost) => {
+                    if (isDraw) {
+                      return 'border-[#F59E0B]/45 bg-[#FEF3C7] text-[#92400E] dark:border-[#FBBF24]/45 dark:bg-[#3A2A18] dark:text-[#FCD34D]';
+                    }
+                    if (sideWon) {
+                      return 'border-[#0F766E]/45 bg-[#CCFBF1] text-[#115E59] dark:border-[#2DD4BF]/45 dark:bg-[#0F2F31] dark:text-[#99F6E4]';
+                    }
+                    if (sideLost) {
+                      return 'border-[#E2A8A8] bg-[#FDECEC] text-[#7F1D1D] dark:border-[#7F1D1D] dark:bg-[#2F1A1F] dark:text-[#FCA5A5]';
+                    }
+                    return 'border-[#D8E2F0] bg-white text-[#0F172A] dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF]';
+                  };
+
+                  const homeScoreClasses = getScoreInputClasses(homeWon, awayWon);
+                  const awayScoreClasses = getScoreInputClasses(awayWon, homeWon);
 
                   return (
                     <div key={match.id}>
                       <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 text-xs">
-                        <span className="truncate text-[#0F172A] dark:text-[#FFFFFF]">{teamMap[match.home].name}</span>
+                        <span
+                          className={`truncate text-[#0F172A] dark:text-[#FFFFFF] ${homeWon ? 'font-semibold' : 'font-medium'}`}
+                        >
+                          {teamMap[match.home].name}
+                        </span>
                         <input
                           type="number"
                           min="0"
@@ -281,9 +306,13 @@ export default function GroupStage({
                           disabled={stageLocked}
                           value={match.homeGoals}
                           onChange={(e) => onScoreChange(group.id, match.id, 'homeGoals', e.target.value)}
-                          className="w-10 rounded-md border border-[#D8E2F0] bg-white p-1 text-center text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:focus:ring-[#3B82F6]/20"
+                          className={`w-10 rounded-md border p-1 text-center focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#3B82F6]/20 ${homeScoreClasses}`}
                         />
-                        <span className="truncate text-[#0F172A] dark:text-[#FFFFFF]">{teamMap[match.away].name}</span>
+                        <span
+                          className={`truncate text-[#0F172A] dark:text-[#FFFFFF] ${awayWon ? 'font-semibold' : 'font-medium'}`}
+                        >
+                          {teamMap[match.away].name}
+                        </span>
                         <input
                           type="number"
                           min="0"
@@ -292,7 +321,7 @@ export default function GroupStage({
                           disabled={stageLocked}
                           value={match.awayGoals}
                           onChange={(e) => onScoreChange(group.id, match.id, 'awayGoals', e.target.value)}
-                          className="w-10 rounded-md border border-[#D8E2F0] bg-white p-1 text-center text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#FFFFFF] dark:focus:ring-[#3B82F6]/20"
+                          className={`w-10 rounded-md border p-1 text-center focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#3B82F6]/20 ${awayScoreClasses}`}
                         />
                       </div>
                       {hasIncompleteScore && <p className="mt-1 text-[10px] text-[#B45309] dark:text-[#F59E0B]">Falta marcador</p>}
@@ -316,6 +345,7 @@ export default function GroupStage({
           {outcomes.rankedThirds.map((entry, idx) => {
             const team = teamMap[entry.teamId];
             const qualified = idx < 8;
+            const isBubbleSpot = !areAllGroupsComplete && (idx === 6 || idx === 7);
             const rankClasses = qualified
               ? 'bg-[#FDE68A] text-[#451A03] dark:bg-[#3D2A0D] dark:text-[#FCD34D]'
               : 'bg-[#FECACA] text-[#450A0A] dark:bg-[#3A151C] dark:text-[#FCA5A5]';
@@ -325,13 +355,29 @@ export default function GroupStage({
             const chipClasses =
               'rounded-md border border-[#CBD5E1] bg-[#F8FAFC] px-1.5 py-0.5 text-[#0F172A] dark:border-[#334155] dark:bg-[#1A2235] dark:text-[#D4D4D8]';
             return (
-              <div
+              <motion.div
                 key={entry.teamId}
                 className={`rounded-xl border px-3 py-2.5 ${
                   qualified
                     ? 'border-[#D97706]/55 bg-[#FFEDD5] text-[#9A3412] dark:border-[#F59E0B]/55 dark:bg-[#3A2614] dark:text-[#FCD34D]'
                     : 'border-[#EF4444]/45 bg-[#FEF2F2] text-[#991B1B] dark:border-[#F87171]/45 dark:bg-[#32141A] dark:text-[#FCA5A5]'
                 }`}
+                animate={
+                  isBubbleSpot
+                    ? {
+                        boxShadow: ['0 0 0 rgba(245,158,11,0)', '0 0 0 2px rgba(245,158,11,0.25)', '0 0 0 rgba(245,158,11,0)'],
+                      }
+                    : undefined
+                }
+                transition={
+                  isBubbleSpot
+                    ? {
+                        duration: 2.2,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                      }
+                    : undefined
+                }
               >
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <span
@@ -357,11 +403,83 @@ export default function GroupStage({
                 </div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-[#475569] dark:text-[#9CA3AF]">Grupo {entry.group}</p>
                 <div className="flex items-center gap-1.5 text-xs font-semibold">
-                  <span className={chipClasses}>PTS {entry.points}</span>
-                  <span className={chipClasses}>DG {entry.gd}</span>
-                  <span className={chipClasses}>GF {entry.gf}</span>
+                  <motion.span
+                    className={chipClasses}
+                    animate={
+                      isBubbleSpot
+                        ? {
+                            boxShadow: [
+                              '0 0 0 0 rgba(245,158,11,0)',
+                              '0 0 0 3px rgba(245,158,11,0.35)',
+                              '0 0 0 0 rgba(245,158,11,0)',
+                            ],
+                          }
+                        : undefined
+                    }
+                    transition={
+                      isBubbleSpot
+                        ? {
+                            duration: 1.8,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                          }
+                        : undefined
+                    }
+                  >
+                    PTS {entry.points}
+                  </motion.span>
+                  <motion.span
+                    className={chipClasses}
+                    animate={
+                      isBubbleSpot
+                        ? {
+                            boxShadow: [
+                              '0 0 0 0 rgba(245,158,11,0)',
+                              '0 0 0 3px rgba(245,158,11,0.35)',
+                              '0 0 0 0 rgba(245,158,11,0)',
+                            ],
+                          }
+                        : undefined
+                    }
+                    transition={
+                      isBubbleSpot
+                        ? {
+                            duration: 1.8,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                          }
+                        : undefined
+                    }
+                  >
+                    DG {entry.gd}
+                  </motion.span>
+                  <motion.span
+                    className={chipClasses}
+                    animate={
+                      isBubbleSpot
+                        ? {
+                            boxShadow: [
+                              '0 0 0 0 rgba(245,158,11,0)',
+                              '0 0 0 3px rgba(245,158,11,0.35)',
+                              '0 0 0 0 rgba(245,158,11,0)',
+                            ],
+                          }
+                        : undefined
+                    }
+                    transition={
+                      isBubbleSpot
+                        ? {
+                            duration: 1.8,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                          }
+                        : undefined
+                    }
+                  >
+                    GF {entry.gf}
+                  </motion.span>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
