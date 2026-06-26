@@ -152,8 +152,8 @@ export default function GroupStage({
 
               <div >
                 <details className="sm:hidden">
-                  <summary className="cursor-pointer">Ver siglas de tabla</summary>
-                  <p className="mt-1">PJ: Jugados · PTS: Puntos · DG: Dif. gol · GF: A favor · GC: En contra</p>
+                  <summary className="cursor-pointer text-[11px] font-medium text-[#475569] dark:text-[#9CA3AF]">Ver siglas de tabla</summary>
+                  <p className="mt-1 text-[10px] leading-tight text-[#64748B] dark:text-[#94A3B8]">PJ: Jugados · PTS: Puntos · DG: Dif. gol · GF: A favor · GC: En contra</p>
                 </details>
               </div>
 
