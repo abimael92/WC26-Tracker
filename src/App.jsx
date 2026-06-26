@@ -166,6 +166,20 @@ export default function App() {
     }
     return cleaned;
   };
+  const getOppositionTeam = (team, homeTeam, awayTeam) => {
+    const normalizedTeam = String(team || '').trim();
+    const normalizedHome = String(homeTeam || '').trim();
+    const normalizedAway = String(awayTeam || '').trim();
+
+    if (normalizedTeam && normalizedHome && normalizedTeam === normalizedHome) return normalizedAway;
+    if (normalizedTeam && normalizedAway && normalizedTeam === normalizedAway) return normalizedHome;
+    return normalizedTeam;
+  };
+  const getAwardedGoalTeam = (row, homeTeam, awayTeam) => {
+    const rowTeam = String(row?.team || '').trim();
+    if (!Boolean(row?.ownGoal)) return rowTeam;
+    return getOppositionTeam(rowTeam, homeTeam, awayTeam);
+  };
   const isValidMinuteValue = (value) => value === '' || /^\d+(?:\+\d+)?$/.test(String(value || '').trim());
   const parseMinuteForSort = (value) => {
     const text = String(value ?? '').trim();
@@ -665,6 +679,14 @@ export default function App() {
 
   const visibleTopScorers = useMemo(() => topScorers.slice(0, visibleTopScorersCount), [topScorers, visibleTopScorersCount]);
   const hasMoreTopScorers = visibleTopScorersCount < topScorers.length;
+  const medalGoalTiers = useMemo(() => {
+    const uniqueGoalTotals = [...new Set(topScorers.map((scorer) => scorer.goals))];
+    return {
+      gold: uniqueGoalTotals[0] ?? null,
+      silver: uniqueGoalTotals[1] ?? null,
+      bronze: uniqueGoalTotals[2] ?? null,
+    };
+  }, [topScorers]);
 
   const champion = useMemo(() => (bracket.champion ? teamMap[bracket.champion] : null), [bracket.champion, teamMap]);
 
@@ -772,16 +794,6 @@ export default function App() {
       return;
     }
 
-    const homeGoalRows = goalRows.filter((row) => String(row.team || '').trim() === homeTeam).length;
-    const awayGoalRows = goalRows.filter((row) => String(row.team || '').trim() === awayTeam).length;
-
-    if (homeGoalRows !== homeScore || awayGoalRows !== awayScore) {
-      setSaveModalError(
-        `Los goles por equipo no cuadran. ${homeTeam}: ${homeGoalRows}/${homeScore}, ${awayTeam}: ${awayGoalRows}/${awayScore}.`
-      );
-      return;
-    }
-
     const rawGoals = goalRows
       .map((row) => ({
         team: String(row.team || '').trim(),
@@ -818,7 +830,26 @@ export default function App() {
   };
 
   const updateGoalRow = (index, field, value) => {
-    setGoalRows((prev) => prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)));
+    setGoalRows((prev) =>
+      prev.map((row, rowIndex) => {
+        if (rowIndex !== index) return row;
+
+        if (field === 'ownGoal') {
+          const nextOwnGoal = Boolean(value);
+          if (nextOwnGoal === Boolean(row.ownGoal)) {
+            return { ...row, ownGoal: nextOwnGoal };
+          }
+
+          return {
+            ...row,
+            ownGoal: nextOwnGoal,
+            team: getOppositionTeam(row.team, saveForm.homeTeam, saveForm.awayTeam),
+          };
+        }
+
+        return { ...row, [field]: value };
+      })
+    );
   };
 
   const openSaveModal = ({ prefillGoal } = {}) => {
@@ -971,17 +1002,26 @@ export default function App() {
                     className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#D5E3FF] bg-[#F8FAFC] px-2.5 py-2 text-left transition-colors hover:bg-[#EEF5FF] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/35 sm:gap-3 sm:px-3 sm:py-2.5 dark:border-[#2C2C34] dark:bg-[#0F1626] dark:hover:bg-[#131D31]"
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      {index === 0 ? (
-                        <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#FEF3C7] text-xs sm:h-7 sm:w-7 dark:bg-[#3A2F13]" aria-label="Primer lugar">
+                      {scorer.goals === medalGoalTiers.gold ? (
+                        <span className="relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#FEF3C7] text-xs sm:h-7 sm:w-7 dark:bg-[#3A2F13]" aria-label="Primer lugar">
                           🥇
+                          <span className="absolute -top-1.5 rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-1 py-[1px] text-[8px] font-black leading-none text-[#1E3A8A] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                            1°
+                          </span>
                         </span>
-                      ) : index === 1 ? (
-                        <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-xs sm:h-7 sm:w-7 dark:bg-[#273449]" aria-label="Segundo lugar">
+                      ) : scorer.goals === medalGoalTiers.silver ? (
+                        <span className="relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-xs sm:h-7 sm:w-7 dark:bg-[#273449]" aria-label="Segundo lugar">
                           🥈
+                          <span className="absolute -top-1.5 rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-1 py-[1px] text-[8px] font-black leading-none text-[#1E3A8A] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                            2°
+                          </span>
                         </span>
-                      ) : index === 2 ? (
-                        <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#FCD9B6] text-xs sm:h-7 sm:w-7 dark:bg-[#3D2A1E]" aria-label="Tercer lugar">
+                      ) : scorer.goals === medalGoalTiers.bronze ? (
+                        <span className="relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#FCD9B6] text-xs sm:h-7 sm:w-7 dark:bg-[#3D2A1E]" aria-label="Tercer lugar">
                           🥉
+                          <span className="absolute -top-1.5 rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-1 py-[1px] text-[8px] font-black leading-none text-[#1E3A8A] dark:border-[#1E3A8A] dark:bg-[#10203A] dark:text-[#8FB4FF]">
+                            3°
+                          </span>
                         </span>
                       ) : (
                         <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[11px] font-black text-[#1E3A8A] sm:h-7 sm:w-7 sm:text-xs dark:bg-[#1A2740] dark:text-[#8FB4FF]">
@@ -1143,9 +1183,10 @@ export default function App() {
                   setIsPlayerModalOpen(false);
                   setSelectedScorer(null);
                 }}
-                className="rounded-full border border-[#2E3B52] px-2.5 py-1.5 text-sm font-semibold text-[#D4D4D8] hover:bg-[#1A2740]"
+                aria-label="Cerrar"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#FCA5A5] bg-[#7F1D1D] text-lg font-bold leading-none text-[#FEE2E2] transition-colors hover:bg-[#991B1B]"
               >
-                Cerrar
+                ×
               </button>
             </div>
 
@@ -1233,9 +1274,10 @@ export default function App() {
                   setIsSaveModalOpen(false);
                   setSaveModalError('');
                 }}
-                className="rounded-full border border-[#2E3B52] px-2.5 py-1.5 text-sm font-semibold text-[#D4D4D8] hover:bg-[#1A2740]"
+                aria-label="Cerrar"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#FCA5A5] bg-[#7F1D1D] text-lg font-bold leading-none text-[#FEE2E2] transition-colors hover:bg-[#991B1B]"
               >
-                Cerrar
+                ×
               </button>
             </div>
 

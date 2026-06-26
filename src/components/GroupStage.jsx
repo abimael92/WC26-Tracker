@@ -162,8 +162,8 @@ export default function GroupStage({
                 <thead>
                   <tr className="border-b border-[#D8E2F0] bg-[#F4F7FC] text-[#0F172A] dark:border-[#25324A] dark:bg-[#1A2740] dark:text-[#FFFFFF]">
                     <th className="pb-1 text-left">Equipo</th>
-                    <th title="Partidos jugados" className="cursor-help">PJ</th>
                     <th title="Puntos" className="cursor-help">PTS</th>
+                    <th title="Partidos jugados" className="cursor-help">PJ</th>
                     <th title="Diferencia de gol" className="cursor-help">DG</th>
                     <th title="Goles a favor" className="cursor-help">GF</th>
                     <th title="Goles en contra" className="cursor-help">GC</th>
@@ -191,6 +191,8 @@ export default function GroupStage({
                     const assignedPlace = Number(
                       Object.entries(placementForGroup).find(([, teamId]) => teamId === row.teamId)?.[0] || 0
                     );
+                    const autoPlace = isGroupComplete ? idx + 1 : 0;
+                    const displayedPlace = assignedPlace > 0 ? assignedPlace : autoPlace;
                     return (
                       <tr
                         key={row.teamId}
@@ -221,14 +223,18 @@ export default function GroupStage({
                                 onToggleGroupPlacement?.(group.id, row.teamId);
                               }}
                               className={`min-w-[24px] rounded-full border px-1.5 py-0.5 text-[10px] font-bold leading-none transition-colors ${
-                                assignedPlace > 0
-                                  ? assignedPlace === 4
+                                displayedPlace > 0
+                                  ? displayedPlace === 4
                                     ? 'border-[#DC2626] bg-[#FEE2E2] text-[#991B1B] dark:border-[#EF4444] dark:bg-[#3A1217] dark:text-[#FCA5A5]'
-                                    : 'border-[#2563EB] bg-[#DBEAFE] text-[#1E3A8A] dark:border-[#3B82F6] dark:bg-[#1A2740] dark:text-[#8FB4FF]'
+                                    : displayedPlace === 1
+                                      ? 'border-[#D97706] bg-[#FEF3C7] text-[#7C2D12] dark:border-[#F59E0B] dark:bg-[#3D2A0D] dark:text-[#FCD34D]'
+                                      : displayedPlace === 2
+                                        ? 'border-[#94A3B8] bg-[#E2E8F0] text-[#334155] dark:border-[#CBD5E1] dark:bg-[#1E293B] dark:text-[#E2E8F0]'
+                                        : 'border-[#B45309] bg-[#FED7AA] text-[#7C2D12] dark:border-[#D97706] dark:bg-[#3A2614] dark:text-[#FDBA74]'
                                   : 'border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#EEF3FB] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#25324A] dark:bg-[#121A2B] dark:text-[#A9B4C7] dark:hover:bg-[#1A2740]'
                               }`}
                             >
-                              {assignedPlace > 0 ? `${assignedPlace}°` : '—'}
+                              {displayedPlace > 0 ? `${displayedPlace}°` : '—'}
                             </button>
                             <img
                               src={`https://flagcdn.com/w40/${team.code}.png`}
@@ -239,7 +245,6 @@ export default function GroupStage({
                             <span className="text-[10px] tracking-wide text-[var(--muted-text-aa)] dark:text-[#7A879D]">{team.fifaCode}</span>
                           </div>
                         </td>
-                        <td className="text-center">{row.played}</td>
                         <td className="text-center">
                           <span className="inline-flex items-center gap-1">
                             <span>{row.points}</span>
@@ -250,6 +255,7 @@ export default function GroupStage({
                             )}
                           </span>
                         </td>
+                        <td className="text-center">{row.played}</td>
                         <td className="text-center">{row.gd}</td>
                         <td className="text-center">{row.gf}</td>
                         <td className="text-center">{row.ga}</td>
@@ -300,21 +306,61 @@ export default function GroupStage({
       </div>
 
       <div className="rounded-2xl border border-[#D8E2F0] bg-[#EEF3FB] p-4 dark:border-[#25324A] dark:bg-[#121A2B]">
-        <p className="mb-2 font-display text-xl text-[#0F172A] dark:text-[#FFFFFF]">Ranking de 3.os lugares (avanzan los mejores 8)</p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="font-display text-xl text-[#0F172A] dark:text-[#FFFFFF]">Ranking de 3.os lugares</p>
+          <span className="rounded-full border border-[#1D4ED8]/25 bg-[#DBEAFE] px-3 py-1 text-xs font-semibold text-[#1E3A8A] dark:border-[#3B82F6]/35 dark:bg-[#1A2740] dark:text-[#8FB4FF]">
+            Avanzan los mejores 8
+          </span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {outcomes.rankedThirds.map((entry, idx) => {
             const team = teamMap[entry.teamId];
             const qualified = idx < 8;
+            const rankClasses = qualified
+              ? 'bg-[#FDE68A] text-[#451A03] dark:bg-[#3D2A0D] dark:text-[#FCD34D]'
+              : 'bg-[#FECACA] text-[#450A0A] dark:bg-[#3A151C] dark:text-[#FCA5A5]';
+            const statusBadgeClasses = qualified
+              ? 'border-[#0F766E]/45 bg-[#CCFBF1] text-[#115E59] dark:border-[#2DD4BF]/45 dark:bg-[#0F2F31] dark:text-[#99F6E4]'
+              : 'border-[#DC2626]/45 bg-[#FEE2E2] text-[#991B1B] dark:border-[#F87171]/45 dark:bg-[#3A151C] dark:text-[#FCA5A5]';
+            const chipClasses =
+              'rounded-md border border-[#CBD5E1] bg-[#F8FAFC] px-1.5 py-0.5 text-[#0F172A] dark:border-[#334155] dark:bg-[#1A2235] dark:text-[#D4D4D8]';
             return (
               <div
                 key={entry.teamId}
-                className={`rounded-lg border px-3 py-2 text-xs ${
+                className={`rounded-xl border px-3 py-2.5 ${
                   qualified
-                    ? 'border-[#059669] bg-[#F1F5F9] text-[#059669] dark:border-[#10B981] dark:bg-[#1A2235] dark:text-[#10B981]'
-                    : 'border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C] dark:border-[#7F1D1D] dark:bg-[#3A1217] dark:text-[#FCA5A5]'
+                    ? 'border-[#D97706]/55 bg-[#FFEDD5] text-[#9A3412] dark:border-[#F59E0B]/55 dark:bg-[#3A2614] dark:text-[#FCD34D]'
+                    : 'border-[#EF4444]/45 bg-[#FEF2F2] text-[#991B1B] dark:border-[#F87171]/45 dark:bg-[#32141A] dark:text-[#FCA5A5]'
                 }`}
               >
-                {idx + 1}. {team.name} ({entry.group}) · {entry.points} pts · DG {entry.gd}
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-sm font-black leading-none ${rankClasses}`}
+                    style={{
+                      WebkitTextStroke: '0.8px #000',
+                      textShadow: '0 1px 0 rgba(0,0,0,0.75), 0 0 2px rgba(0,0,0,0.55)',
+                    }}
+                  >
+                    #{idx + 1}
+                  </span>
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] ${statusBadgeClasses}`}>
+                    {qualified ? 'Clasificado' : 'No clasifica'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <img
+                    src={`https://flagcdn.com/w40/${team.code}.png`}
+                    alt={team.name}
+                    className="h-4 w-4 rounded-full"
+                  />
+                  <p className="truncate text-base font-semibold text-[#0F172A] dark:text-[#FFFFFF]">{team.name}</p>
+                </div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-[#475569] dark:text-[#9CA3AF]">Grupo {entry.group}</p>
+                <div className="flex items-center gap-1.5 text-xs font-semibold">
+                  <span className={chipClasses}>PTS {entry.points}</span>
+                  <span className={chipClasses}>DG {entry.gd}</span>
+                  <span className={chipClasses}>GF {entry.gf}</span>
+                </div>
               </div>
             );
           })}

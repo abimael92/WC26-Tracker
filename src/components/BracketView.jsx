@@ -127,30 +127,32 @@ const toMatchScore = (value) => {
 const getSlotCandidateIds = (slotText, outcomes) => {
   if (!slotText || !outcomes) return [];
 
-  const getTeamsFromGroups = (groups) =>
-    groups.flatMap((group) => (outcomes.standingsByGroup?.[group] || []).map((row) => row.teamId));
-
-  const unique = (teamIds) => [...new Set(teamIds)];
+  const unique = (teamIds) => [...new Set(teamIds.filter(Boolean))];
+  const winnerByGroup = outcomes.winners || {};
+  const runnerByGroup = outcomes.runners || {};
+  const qualifyingThirdsByGroup = Object.fromEntries(
+    (outcomes.bestThirds || []).map((entry) => [entry.group, entry.teamId])
+  );
 
   const winnerMatch = slotText.match(/ganador del Grupo\s+([A-L])/i);
   if (winnerMatch) {
-    return unique(getTeamsFromGroups([winnerMatch[1]]));
+    return unique([winnerByGroup[winnerMatch[1]]]);
   }
 
   const bestThirdMatch = slotText.match(/mejor 3\.er lugar de los Grupos\s+([A-L/]+)/i);
   if (bestThirdMatch) {
     const groups = bestThirdMatch[1].split('/');
-    return unique(getTeamsFromGroups(groups));
+    return unique(groups.map((group) => qualifyingThirdsByGroup[group]));
   }
 
   const runnerGroupsMatch = slotText.match(/sublíder de los Grupos\s+([A-L/]+)/i);
   if (runnerGroupsMatch) {
-    return unique(getTeamsFromGroups(runnerGroupsMatch[1].split('/')));
+    return unique(runnerGroupsMatch[1].split('/').map((group) => runnerByGroup[group]));
   }
 
   const runnerGroupMatch = slotText.match(/sublíder del Grupo\s+([A-L])/i);
   if (runnerGroupMatch) {
-    return unique(getTeamsFromGroups([runnerGroupMatch[1]]));
+    return unique([runnerByGroup[runnerGroupMatch[1]]]);
   }
 
   return [];
@@ -264,10 +266,10 @@ function MatchCard({
   const blockedForB = new Set(selectedIdsInRound);
   blockedForB.delete(match.teamB);
 
-  const optionTeamsA = (candidateIdsA.length ? candidateIdsA.map((id) => teamMap[id]).filter(Boolean) : allTeams)
+  const optionTeamsA = (showSeedTemplate ? candidateIdsA.map((id) => teamMap[id]).filter(Boolean) : allTeams)
     .filter((team) => !blockedForA.has(team.id))
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  const optionTeamsB = (candidateIdsB.length ? candidateIdsB.map((id) => teamMap[id]).filter(Boolean) : allTeams)
+  const optionTeamsB = (showSeedTemplate ? candidateIdsB.map((id) => teamMap[id]).filter(Boolean) : allTeams)
     .filter((team) => !blockedForB.has(team.id))
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
@@ -314,7 +316,7 @@ function MatchCard({
       >
         <div className="mb-2 flex justify-end">
           <span
-            className={`rounded-full border px-3 py-1 text-[11px] font-bold leading-none ${
+            className={`rounded-full border px-3.5 py-1.5 text-xs font-bold leading-none ${
               isComplete
                 ? 'border-[#059669]/35 bg-[#ECFDF5] text-[#047857] dark:border-[#10B981]/45 dark:bg-[#103225] dark:text-[#34D399]'
                 : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#475569] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#A9B4C7]'
@@ -552,8 +554,6 @@ export default function BracketView({
     return () => window.cancelAnimationFrame(frameId);
   }, [showMobileMatchSheet, mobileSheetMatch?.id, mobileSheetMatch?.teamA, mobileSheetMatch?.teamB, mobileSheetScoreA, mobileSheetScoreB]);
 
-  const allTeamsSorted = useMemo(() => Object.values(teamMap).sort((a, b) => a.name.localeCompare(b.name, 'es')), [teamMap]);
-
   const mobileSheetOptions = useMemo(() => {
     const showSeedTemplate = mobileSheetRoundKey === 'r32';
     if (!mobileSheetMatch || !showSeedTemplate) {
@@ -569,16 +569,16 @@ export default function BracketView({
     const blockedForB = new Set(selectedIdsInRound);
     blockedForB.delete(mobileSheetMatch.teamB);
 
-    const optionTeamsA = (candidateIdsA.length ? candidateIdsA.map((id) => teamMap[id]).filter(Boolean) : allTeamsSorted)
+    const optionTeamsA = candidateIdsA.map((id) => teamMap[id]).filter(Boolean)
       .filter((team) => !blockedForA.has(team.id))
       .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
-    const optionTeamsB = (candidateIdsB.length ? candidateIdsB.map((id) => teamMap[id]).filter(Boolean) : allTeamsSorted)
+    const optionTeamsB = candidateIdsB.map((id) => teamMap[id]).filter(Boolean)
       .filter((team) => !blockedForB.has(team.id))
       .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
     return { showSeedTemplate, optionTeamsA, optionTeamsB };
-  }, [allTeamsSorted, bracket, mobileSheetMatch, mobileSheetRoundKey, outcomes, teamMap]);
+  }, [bracket, mobileSheetMatch, mobileSheetRoundKey, outcomes, teamMap]);
 
   const allScheduleRows = useMemo(() => getAllScheduleRows(), []);
 
@@ -1291,10 +1291,10 @@ export default function BracketView({
               {roundProgressSummary.map((round) => (
                 <div key={`summary-round-${round.roundKey}`} className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2 dark:border-[#1F2937] dark:bg-[#1A2235]">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(round.roundKey)}`}>
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getRoundBadgeClass(round.roundKey)}`}>
                       {ROUND_LABELS[round.roundKey]}
                     </span>
-                    <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
+                    <span className="text-xs font-semibold text-[#64748B] dark:text-[#9CA3AF]">
                       {round.completed}/{round.total}
                     </span>
                   </div>
@@ -1361,7 +1361,7 @@ export default function BracketView({
                         return (
                           <tr key={row.id} className="border-t border-[#D8E2F0] text-[#0F172A] dark:border-[#25324A] dark:text-[#FFFFFF]">
                             <td className="px-3 py-2">
-                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(row.roundKey)}`}>
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getRoundBadgeClass(row.roundKey)}`}>
                                 {ROUND_LABELS[row.roundKey]}
                               </span>
                             </td>
@@ -1443,8 +1443,8 @@ export default function BracketView({
                 return (
                   <div key={`compact-${roundKey}`} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
                     <div className="mb-2 flex items-center justify-between border-b border-[#E2E8F0] pb-2 dark:border-[#1F2937]">
-                      <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${getRoundBadgeClass(roundKey)}`}>{ROUND_LABELS[roundKey]}</span>
-                      <span className="text-[11px] text-[#475569] dark:text-[#9CA3AF]">{completion}% ({progress.completed}/{progress.total})</span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-sm font-semibold ${getRoundBadgeClass(roundKey)}`}>{ROUND_LABELS[roundKey]}</span>
+                      <span className="text-sm font-semibold text-[#475569] dark:text-[#9CA3AF]">{completion}% ({progress.completed}/{progress.total})</span>
                     </div>
                     <div className="mb-2 flex gap-1">
                       {Array.from({ length: progress.total || 1 }).map((_, idx) => (
@@ -1481,7 +1481,7 @@ export default function BracketView({
                           >
                             <div className="mb-2 flex justify-end">
                               <span
-                                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                                className={`rounded-full border px-3 py-1 text-xs font-semibold ${
                                   isComplete
                                     ? 'border-[#059669]/30 bg-[#ECFDF5] text-[#059669] dark:border-[#10B981]/40 dark:bg-[#103225] dark:text-[#34D399]'
                                     : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#64748B] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#94A3B8]'
@@ -1777,10 +1777,10 @@ export default function BracketView({
                       {getSideMatches(roundKey, side).map(({ match, sourceIndex }) => (
                         <div key={match.id} className="mx-auto w-full" style={{ maxWidth: getRoundCardMaxWidth(roundKey) }}>
                           <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(roundKey)}`}>
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getRoundBadgeClass(roundKey)}`}>
                               {ROUND_LABELS[roundKey]}
                             </span>
-                            <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
+                            <span className="text-xs font-semibold text-[#64748B] dark:text-[#9CA3AF]">
                               {getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total}
                             </span>
                           </div>
@@ -1877,10 +1877,10 @@ export default function BracketView({
                       {getSideMatches(roundKey, side).map(({ match, sourceIndex }) => (
                         <div key={match.id} className="mx-auto w-full" style={{ maxWidth: getRoundCardMaxWidth(roundKey) }}>
                           <div className="mb-1 flex items-center justify-between gap-2">
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${getRoundBadgeClass(roundKey)}`}>
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getRoundBadgeClass(roundKey)}`}>
                               {ROUND_LABELS[roundKey]}
                             </span>
-                            <span className="text-[10px] text-[#64748B] dark:text-[#9CA3AF]">
+                            <span className="text-xs font-semibold text-[#64748B] dark:text-[#9CA3AF]">
                               {getRoundProgressCounts(roundKey).completed}/{getRoundProgressCounts(roundKey).total}
                             </span>
                           </div>
