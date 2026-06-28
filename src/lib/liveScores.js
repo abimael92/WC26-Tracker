@@ -569,3 +569,106 @@ export const saveLiveScoreEntryToFirebase = async (entry) => {
   await setDoc(doc(firestoreDb, LIVE_SCORES_COLLECTION, String(matchId)), payload, { merge: true });
   return true;
 };
+
+export const repairStoredLiveScoresInFirebase = async (groupMatches, teamMap, options = {}) => {
+  if (!isFirebaseConfigured || !firestoreDb) {
+    return { scanned: 0, repaired: 0, skipped: 0, dryRun: Boolean(options?.dryRun) };
+  }
+
+  if (!groupMatches || !teamMap) {
+    return { scanned: 0, repaired: 0, skipped: 0, dryRun: Boolean(options?.dryRun) };
+  }
+
+  const dryRun = Boolean(options?.dryRun);
+  const targetGroupId = String(options?.targetGroupId || '').trim().toUpperCase() || null;
+
+  const scoresQuery = query(collection(firestoreDb, LIVE_SCORES_COLLECTION), orderBy('matchId'));
+  const snapshot = await getDocs(scoresQuery);
+
+  let scanned = 0;
+  let repaired = 0;
+  let skipped = 0;
+
+  for (const docSnap of snapshot.docs) {
+    const entry = docSnap.data() || {};
+    scanned += 1;
+
+    const inferredHomeName = entry.homeTeam || (!isGroupCode(entry.group) ? entry.group : null);
+    const homeTeamId = toTeamId(inferredHomeName, teamMap);
+    const awayTeamId = toTeamId(entry.awayTeam, teamMap);
+    const homeScore = toNumberScore(entry.homeScore);
+    const awayScore = toNumberScore(entry.awayScore);
+
+    if (!homeTeamId || !awayTeamId || homeScore == null || awayScore == null) {
+      skipped += 1;
+      continue;
+    }
+
+    const resolvedGroupId = resolveGroupId(entry.group, homeTeamId, awayTeamId, groupMatches);
+    if (!resolvedGroupId || !groupMatches[resolvedGroupId]) {
+      skipped += 1;
+      continue;
+    }
+
+    if (targetGroupId && resolvedGroupId !== targetGroupId) {
+      continue;
+    }
+
+    const matches = groupMatches[resolvedGroupId];
+    const directMatch = matches.find((match) => match.home === homeTeamId && match.away === awayTeamId);
+    const reversedMatch = matches.find((match) => match.home === awayTeamId && match.away === homeTeamId);
+    const fixtureMatch = directMatch || reversedMatch;
+
+    if (!fixtureMatch) {
+      skipped += 1;
+      continue;
+    }
+
+    const isReversed = Boolean(reversedMatch && !directMatch);
+    const canonicalHomeId = fixtureMatch.home;
+    const canonicalAwayId = fixtureMatch.away;
+    const canonicalHomeName = teamMap[canonicalHomeId]?.name || String(entry.homeTeam || '').trim();
+    const canonicalAwayName = teamMap[canonicalAwayId]?.name || String(entry.awayTeam || '').trim();
+    const canonicalHomeScore = isReversed ? awayScore : homeScore;
+    const canonicalAwayScore = isReversed ? homeScore : awayScore;
+
+    const normalizedGoals = Array.isArray(entry.goals)
+      ? entry.goals.map((goal) => {
+          const goalTeamId = toTeamId(goal?.team, teamMap);
+          const normalizedTeam = goalTeamId ? (teamMap[goalTeamId]?.name || String(goal?.team || '').trim()) : String(goal?.team || '').trim();
+          return {
+            ...goal,
+            team: normalizedTeam,
+          };
+        })
+      : [];
+
+    const nextPayload = {
+      group: resolvedGroupId,
+      homeTeam: canonicalHomeName,
+      awayTeam: canonicalAwayName,
+      homeScore: canonicalHomeScore,
+      awayScore: canonicalAwayScore,
+      goals: normalizedGoals,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const sameGoals = JSON.stringify(entry.goals || []) === JSON.stringify(nextPayload.goals || []);
+    const hasChanges =
+      String(entry.group || '').trim().toUpperCase() !== nextPayload.group ||
+      String(entry.homeTeam || '').trim() !== nextPayload.homeTeam ||
+      String(entry.awayTeam || '').trim() !== nextPayload.awayTeam ||
+      Number(entry.homeScore) !== nextPayload.homeScore ||
+      Number(entry.awayScore) !== nextPayload.awayScore ||
+      !sameGoals;
+
+    if (!hasChanges) continue;
+
+    repaired += 1;
+    if (!dryRun) {
+      await setDoc(doc(firestoreDb, LIVE_SCORES_COLLECTION, docSnap.id), nextPayload, { merge: true });
+    }
+  }
+
+  return { scanned, repaired, skipped, dryRun, targetGroupId };
+};
