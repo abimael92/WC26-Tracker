@@ -756,7 +756,8 @@ export default function App() {
 
     const homeScore = Number(saveForm.homeScore);
     const awayScore = Number(saveForm.awayScore);
-    const group = saveForm.group.trim().toUpperCase();
+    const groupFromFixture = String(selectedFixtureForSave?.groupId || '').trim().toUpperCase();
+    const group = groupFromFixture || saveForm.group.trim().toUpperCase();
     const homeTeam = saveForm.homeTeam.trim();
     const awayTeam = saveForm.awayTeam.trim();
     const matchId = autoDetectedMatchId;

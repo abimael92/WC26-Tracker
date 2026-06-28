@@ -381,7 +381,17 @@ const toTeamId = (teamName, teamMap) => {
 
 const resolveGroupId = (entryGroup, homeTeamId, awayTeamId, groupMatches) => {
   if (isGroupCode(entryGroup)) {
-    return String(entryGroup).toUpperCase();
+    const explicitGroupId = String(entryGroup).toUpperCase();
+    const explicitMatches = groupMatches[explicitGroupId] || [];
+    const hasPairInExplicitGroup = explicitMatches.some(
+      (match) =>
+        (match.home === homeTeamId && match.away === awayTeamId) ||
+        (match.home === awayTeamId && match.away === homeTeamId)
+    );
+
+    if (hasPairInExplicitGroup) {
+      return explicitGroupId;
+    }
   }
 
   return (
