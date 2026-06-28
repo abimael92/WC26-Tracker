@@ -70,6 +70,16 @@ const ROUND_ANNOUNCE_LABELS = {
   final: 'la final',
   third: 'tercer lugar',
 };
+const ROUND_MOBILE_SHORT_LABELS = {
+  r32: '16avos',
+  r16: '8vos',
+  qf: '4tos',
+  sf: 'Semis',
+  third: '3°',
+  final: 'Final',
+};
+
+const getRoundMobileShortLabel = (roundKey) => ROUND_MOBILE_SHORT_LABELS[roundKey] || ROUND_LABELS[roundKey] || 'Ronda';
 
 const ACTIVE_MATCH_CLASSES = {
   r32: 'border-l-4 border-l-[#0EA5E9] border-[#0EA5E9] bg-[#ECFEFF] shadow-[0_8px_18px_rgba(14,165,233,0.2)] ring-2 ring-[#38BDF8]/30 dark:border-l-[#38BDF8] dark:border-[#38BDF8] dark:bg-[#0C2336] dark:shadow-[0_8px_20px_rgba(2,6,23,0.5)] dark:ring-[#38BDF8]/35',
@@ -116,6 +126,42 @@ const formatSlotRuleHint = (slotText) => {
   if (runnerGroupMatch) return `Debe ser el sublíder del Grupo ${runnerGroupMatch[1]}.`;
 
   return 'Cupo definido por reglas de siembra del torneo.';
+};
+
+const formatSeedSlotMobile = (slotText) => {
+  if (!slotText) return 'Por definir';
+
+  const winnerMatch = slotText.match(/ganador del Grupo\s+([A-L])/i);
+  if (winnerMatch) return `1° G${winnerMatch[1]}`;
+
+  const bestThirdMatch = slotText.match(/mejor 3\.er lugar de los Grupos\s+([A-L/]+)/i);
+  if (bestThirdMatch) return `3°: ${bestThirdMatch[1]}`;
+
+  const runnerGroupsMatch = slotText.match(/sublíder de los Grupos\s+([A-L/]+)/i);
+  if (runnerGroupsMatch) return `2°: ${runnerGroupsMatch[1]}`;
+
+  const runnerGroupMatch = slotText.match(/sublíder del Grupo\s+([A-L])/i);
+  if (runnerGroupMatch) return `2° G${runnerGroupMatch[1]}`;
+
+  return formatSeedSlot(slotText);
+};
+
+const formatSlotRuleHintMobile = (slotText) => {
+  if (!slotText) return 'Cupo pendiente.';
+
+  const winnerMatch = slotText.match(/ganador del Grupo\s+([A-L])/i);
+  if (winnerMatch) return `Solo Grupo ${winnerMatch[1]}.`;
+
+  const bestThirdMatch = slotText.match(/mejor 3\.er lugar de los Grupos\s+([A-L/]+)/i);
+  if (bestThirdMatch) return `Mejor 3° entre ${bestThirdMatch[1]}.`;
+
+  const runnerGroupsMatch = slotText.match(/sublíder de los Grupos\s+([A-L/]+)/i);
+  if (runnerGroupsMatch) return `Sublíder entre ${runnerGroupsMatch[1]}.`;
+
+  const runnerGroupMatch = slotText.match(/sublíder del Grupo\s+([A-L])/i);
+  if (runnerGroupMatch) return `Sublíder del Grupo ${runnerGroupMatch[1]}.`;
+
+  return 'Definido por siembra.';
 };
 
 const toMatchScore = (value) => {
@@ -584,12 +630,12 @@ export default function BracketView({
 
   const mobileRoundMeta = useMemo(
     () => [
-      { key: 'r32', label: '16avos', fullLabel: ROUND_LABELS.r32 },
-      { key: 'r16', label: 'Octavos', fullLabel: ROUND_LABELS.r16 },
-      { key: 'qf', label: 'Cuartos', fullLabel: ROUND_LABELS.qf },
-      { key: 'sf', label: 'Semis', fullLabel: ROUND_LABELS.sf },
-      { key: 'final', label: 'Final', fullLabel: ROUND_LABELS.final },
-      { key: 'third', label: '3°', fullLabel: ROUND_LABELS.third },
+      { key: 'r32', label: getRoundMobileShortLabel('r32'), fullLabel: ROUND_LABELS.r32 },
+      { key: 'r16', label: getRoundMobileShortLabel('r16'), fullLabel: ROUND_LABELS.r16 },
+      { key: 'qf', label: getRoundMobileShortLabel('qf'), fullLabel: ROUND_LABELS.qf },
+      { key: 'sf', label: getRoundMobileShortLabel('sf'), fullLabel: ROUND_LABELS.sf },
+      { key: 'final', label: getRoundMobileShortLabel('final'), fullLabel: ROUND_LABELS.final },
+      { key: 'third', label: getRoundMobileShortLabel('third'), fullLabel: ROUND_LABELS.third },
     ],
     []
   );
@@ -1426,7 +1472,7 @@ export default function BracketView({
                   <div className="h-2 rounded-full bg-[#2563EB] dark:bg-[#3B82F6]" style={{ width: `${totalCompletion}%` }} />
                 </div>
                 <p className="mt-1 text-[11px] text-[#475569] dark:text-[#9CA3AF]">
-                  Progreso del knockout: {totalCompletion}% ({totalProgressCounts.completed}/{totalProgressCounts.total})
+                  K.O.: {totalCompletion}% ({totalProgressCounts.completed}/{totalProgressCounts.total})
                 </p>
               </div>
 
@@ -1443,7 +1489,7 @@ export default function BracketView({
                 return (
                   <div key={`compact-${roundKey}`} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_2px_6px_rgba(15,23,42,0.08)] dark:border-[#1F2937] dark:bg-[#141B2B]">
                     <div className="mb-2 flex items-center justify-between border-b border-[#E2E8F0] pb-2 dark:border-[#1F2937]">
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-sm font-semibold ${getRoundBadgeClass(roundKey)}`}>{ROUND_LABELS[roundKey]}</span>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-sm font-semibold ${getRoundBadgeClass(roundKey)}`}>{getRoundMobileShortLabel(roundKey)}</span>
                       <span className="text-sm font-semibold text-[#475569] dark:text-[#9CA3AF]">{completion}% ({progress.completed}/{progress.total})</span>
                     </div>
                     <div className="mb-2 flex gap-1">
@@ -1487,7 +1533,7 @@ export default function BracketView({
                                     : 'border-[#CBD5E1] bg-[#F8FAFC] text-[#64748B] dark:border-[#25324A] dark:bg-[#1A2235] dark:text-[#94A3B8]'
                                 }`}
                               >
-                                {isComplete ? 'Completo' : 'Pendiente'}
+                                {isComplete ? 'OK' : 'Pend.'}
                               </span>
                             </div>
                             <div className="space-y-2">
@@ -1508,7 +1554,7 @@ export default function BracketView({
                               </div>
 
                               <div className="flex items-center justify-between text-[12px] text-[#475569] dark:text-[#9CA3AF]">
-                                <span>{getScheduleText(roundKey, sourceIndex) || 'Sin horario'}</span>
+                                <span>{getScheduleText(roundKey, sourceIndex) || 'Sin hora'}</span>
                                 {showAdvancePulse ? (
                                   <motion.span
                                     key={`mobile-advance-${mobileAdvancePulse.token}-${match.id}`}
@@ -1517,10 +1563,10 @@ export default function BracketView({
                                     transition={{ duration: 0.9, ease: 'easeOut' }}
                                     className="font-semibold text-[#0EA5E9] dark:text-[#67E8F9]"
                                   >
-                                    Avanza el ganador →
+                                    Pasa →
                                   </motion.span>
                                 ) : (
-                                  <span>Avanza el ganador →</span>
+                                  <span>Pasa →</span>
                                 )}
                               </div>
                             </div>
@@ -1559,7 +1605,7 @@ export default function BracketView({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="mb-3 h-1.5 w-14 rounded-full bg-[#E2E8F0] dark:bg-[#1F2937]" />
-                <p className="font-display text-xl text-[#2563EB] dark:text-[#FBBF24]">{ROUND_LABELS[mobileSheetRoundKey]}</p>
+                <p className="font-display text-xl text-[#2563EB] dark:text-[#FBBF24]">{getRoundMobileShortLabel(mobileSheetRoundKey)}</p>
                 {mobileSheetSchedule?.local && (
                   <p className="mt-1 text-xs text-[#475569] dark:text-[#9CA3AF]">
                     {mobileSheetSchedule.local.dateText} · {mobileSheetSchedule.local.timeText}
@@ -1578,14 +1624,14 @@ export default function BracketView({
                       value={mobileSheetMatch.teamA || ''}
                       onChange={(e) => onSetMatchTeam?.(mobileSheetRoundKey, mobileSheetMatchIndex, 'teamA', e.target.value)}
                     >
-                      <option value="">{formatSeedSlot(mobileSheetMatch.slotA)}</option>
+                      <option value="">{formatSeedSlotMobile(mobileSheetMatch.slotA)}</option>
                       {mobileSheetOptions.optionTeamsA.map((team) => (
                         <option key={team.id} value={team.id} disabled={team.id === mobileSheetMatch.teamB}>
                           {team.name}
                         </option>
                       ))}
                     </select>
-                    <p className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">{formatSlotRuleHint(mobileSheetMatch.slotA)}</p>
+                    <p className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">{formatSlotRuleHintMobile(mobileSheetMatch.slotA)}</p>
                     <TeamPill team={mobileSheetMatch.teamA ? teamMap[mobileSheetMatch.teamA] : null} />
 
                     <select
@@ -1593,14 +1639,14 @@ export default function BracketView({
                       value={mobileSheetMatch.teamB || ''}
                       onChange={(e) => onSetMatchTeam?.(mobileSheetRoundKey, mobileSheetMatchIndex, 'teamB', e.target.value)}
                     >
-                      <option value="">{formatSeedSlot(mobileSheetMatch.slotB)}</option>
+                      <option value="">{formatSeedSlotMobile(mobileSheetMatch.slotB)}</option>
                       {mobileSheetOptions.optionTeamsB.map((team) => (
                         <option key={team.id} value={team.id} disabled={team.id === mobileSheetMatch.teamA}>
                           {team.name}
                         </option>
                       ))}
                     </select>
-                    <p className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">{formatSlotRuleHint(mobileSheetMatch.slotB)}</p>
+                    <p className="text-[11px] text-[#64748B] dark:text-[#9CA3AF]">{formatSlotRuleHintMobile(mobileSheetMatch.slotB)}</p>
                     <TeamPill team={mobileSheetMatch.teamB ? teamMap[mobileSheetMatch.teamB] : null} />
                   </div>
                 ) : (
