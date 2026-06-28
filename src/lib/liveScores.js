@@ -629,8 +629,8 @@ export const repairStoredLiveScoresInFirebase = async (groupMatches, teamMap, op
     const canonicalAwayId = fixtureMatch.away;
     const canonicalHomeName = teamMap[canonicalHomeId]?.name || String(entry.homeTeam || '').trim();
     const canonicalAwayName = teamMap[canonicalAwayId]?.name || String(entry.awayTeam || '').trim();
-    const canonicalHomeScore = isReversed ? awayScore : homeScore;
-    const canonicalAwayScore = isReversed ? homeScore : awayScore;
+    const canonicalHomeScoreFromEntry = isReversed ? awayScore : homeScore;
+    const canonicalAwayScoreFromEntry = isReversed ? homeScore : awayScore;
 
     const normalizedGoals = Array.isArray(entry.goals)
       ? entry.goals.map((goal) => {
@@ -642,6 +642,37 @@ export const repairStoredLiveScoresInFirebase = async (groupMatches, teamMap, op
           };
         })
       : [];
+
+    const goalsTally = normalizedGoals.reduce(
+      (acc, goal) => {
+        const goalTeamId = toTeamId(goal?.team, teamMap);
+        if (!goalTeamId) {
+          acc.unresolved += 1;
+          return acc;
+        }
+
+        let awardedTeamId = goalTeamId;
+        if (Boolean(goal?.ownGoal)) {
+          if (goalTeamId === canonicalHomeId) awardedTeamId = canonicalAwayId;
+          else if (goalTeamId === canonicalAwayId) awardedTeamId = canonicalHomeId;
+          else {
+            acc.unresolved += 1;
+            return acc;
+          }
+        }
+
+        if (awardedTeamId === canonicalHomeId) acc.home += 1;
+        else if (awardedTeamId === canonicalAwayId) acc.away += 1;
+        else acc.unresolved += 1;
+
+        return acc;
+      },
+      { home: 0, away: 0, unresolved: 0 }
+    );
+
+    const canReconcileFromGoals = normalizedGoals.length > 0 && goalsTally.unresolved === 0;
+    const canonicalHomeScore = canReconcileFromGoals ? goalsTally.home : canonicalHomeScoreFromEntry;
+    const canonicalAwayScore = canReconcileFromGoals ? goalsTally.away : canonicalAwayScoreFromEntry;
 
     const nextPayload = {
       group: resolvedGroupId,
