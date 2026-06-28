@@ -1,5 +1,5 @@
 import { collection, doc, getDocs, orderBy, query, setDoc } from 'firebase/firestore';
-import { firestoreDb, isFirebaseConfigured } from './firebase';
+import { firestoreDb, isFirebaseConfigured } from './firebase.js';
 
 const LIVE_SCORES_COLLECTION = 'wc26_live_scores';
 
