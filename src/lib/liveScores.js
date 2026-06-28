@@ -354,6 +354,12 @@ const TEAM_NAME_ALIASES = {
   'cabo verde': 'cpv',
   colombia: 'col',
   senegal: 'sen',
+
+  // Group I
+  norway: 'nor',
+  noruega: 'nor',
+  iraq: 'irq',
+  irak: 'irq',
 };
 
 const normalizeKey = (value) =>

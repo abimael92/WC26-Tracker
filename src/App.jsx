@@ -804,6 +804,20 @@ export default function App() {
         isPenalty: Boolean(row.isPenalty),
       }));
 
+    const homeAwardedGoals = rawGoals.filter(
+      (row) => getAwardedGoalTeam(row, homeTeam, awayTeam) === homeTeam
+    ).length;
+    const awayAwardedGoals = rawGoals.filter(
+      (row) => getAwardedGoalTeam(row, homeTeam, awayTeam) === awayTeam
+    ).length;
+
+    if (homeAwardedGoals !== homeScore || awayAwardedGoals !== awayScore) {
+      setSaveModalError(
+        `Los goles por equipo no cuadran. ${homeTeam}: ${homeAwardedGoals}/${homeScore}, ${awayTeam}: ${awayAwardedGoals}/${awayScore}.`
+      );
+      return;
+    }
+
     const hasInvalidMinute = rawGoals.some((row) => !isValidMinuteValue(row.minute));
     if (hasInvalidMinute) {
       setSaveModalError('Minuto inválido. Usa formato como 45, 90 o 45+2.');
