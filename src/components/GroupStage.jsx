@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { GROUPS } from '../data/teams';
 
 const isEmptyScore = (value) => value === '' || value === null || value === undefined;
+const isFilledScore = (value) => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value));
 
 export default function GroupStage({
   teamMap,
@@ -24,6 +25,11 @@ export default function GroupStage({
   const bestThirdIds = new Set(outcomes.bestThirds.map((entry) => entry.teamId));
   const areAllGroupsComplete = groupIds.every((groupId) =>
     (groupMatches[groupId] || []).every((match) => !isEmptyScore(match.homeGoals) && !isEmptyScore(match.awayGoals))
+  );
+  const hasPendingGroupScores = groupIds.some((groupId) =>
+    (groupMatches[groupId] || []).some(
+      (match) => !isFilledScore(match?.homeGoals) || !isFilledScore(match?.awayGoals)
+    )
   );
   const hasAnyManualPlacement = Boolean(
     manualGroupPlacements && Object.values(manualGroupPlacements).some((groupPlacement) => Object.keys(groupPlacement || {}).length)
@@ -125,7 +131,7 @@ export default function GroupStage({
             disabled={activeMobileGroupIndex >= groupIds.length - 1}
             className="min-h-[44px] rounded-full border border-[#2563EB] bg-white px-4 text-sm font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
           >
-            Siguiente →
+            →
           </button>
         </div>
       </div>
@@ -279,6 +285,7 @@ export default function GroupStage({
               <div className="space-y-2">
                 {groupMatches[group.id].map((match) => {
                   const hasIncompleteScore = isEmptyScore(match.homeGoals) !== isEmptyScore(match.awayGoals);
+                  const isScoreReadOnly = stageLocked || isGroupComplete;
                   const hasCompleteScore = !isEmptyScore(match.homeGoals) && !isEmptyScore(match.awayGoals);
                   const homeScore = hasCompleteScore ? Number(match.homeGoals) : null;
                   const awayScore = hasCompleteScore ? Number(match.awayGoals) : null;
@@ -315,9 +322,13 @@ export default function GroupStage({
                           min="0"
                           max="9"
                           placeholder="-"
+                          readOnly={isScoreReadOnly}
                           disabled={stageLocked}
                           value={match.homeGoals}
-                          onChange={(e) => onScoreChange(group.id, match.id, 'homeGoals', e.target.value)}
+                          onChange={(e) => {
+                            if (isScoreReadOnly) return;
+                            onScoreChange(group.id, match.id, 'homeGoals', e.target.value);
+                          }}
                           className={`w-10 rounded-md border p-1 text-center focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#3B82F6]/20 ${homeScoreClasses}`}
                         />
                         <span
@@ -330,9 +341,13 @@ export default function GroupStage({
                           min="0"
                           max="9"
                           placeholder="-"
+                          readOnly={isScoreReadOnly}
                           disabled={stageLocked}
                           value={match.awayGoals}
-                          onChange={(e) => onScoreChange(group.id, match.id, 'awayGoals', e.target.value)}
+                          onChange={(e) => {
+                            if (isScoreReadOnly) return;
+                            onScoreChange(group.id, match.id, 'awayGoals', e.target.value);
+                          }}
                           className={`w-10 rounded-md border p-1 text-center focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 dark:focus:ring-[#3B82F6]/20 ${awayScoreClasses}`}
                         />
                       </div>
@@ -357,14 +372,17 @@ export default function GroupStage({
           {outcomes.rankedThirds.map((entry, idx) => {
             const team = teamMap[entry.teamId];
             const qualified = idx < 8;
-            const isBubbleSpot = !areAllGroupsComplete && (idx === 6 || idx === 7);
+            const shouldShowBubbleEffects = hasPendingGroupScores;
+            const isBubbleSpot = shouldShowBubbleEffects && (idx === 6 || idx === 7);
             const shouldAnimateBubble = isBubbleSpot;
             const animateCardBubble = isBubbleSpot && !isMobileViewport;
             const bubbleGlowAnimation = animateCardBubble
               ? {
-                  boxShadow: ['0 0 0 rgba(245,158,11,0)', '0 0 0 2px rgba(245,158,11,0.25)', '0 0 0 rgba(245,158,11,0)'],
+                  boxShadow: ['0 0 0 rgba(245,158,11,0)', '0 0 0 3px rgba(245,158,11,0.38)', '0 0 0 rgba(245,158,11,0)'],
                 }
-              : undefined;
+              : {
+                  boxShadow: '0 0 0 rgba(245,158,11,0)',
+                };
             const bubbleGlowTransition = animateCardBubble
               ? {
                   duration: 2.2,
@@ -375,8 +393,9 @@ export default function GroupStage({
             const chipGlowAnimation = shouldAnimateBubble
               ? {
                   boxShadow: isMobileViewport
-                    ? ['0 0 0 0 rgba(245,158,11,0)', '0 0 0 2px rgba(245,158,11,0.22)', '0 0 0 0 rgba(245,158,11,0)']
-                    : ['0 0 0 0 rgba(245,158,11,0)', '0 0 0 3px rgba(245,158,11,0.35)', '0 0 0 0 rgba(245,158,11,0)'],
+                    ? ['0 0 0 0 rgba(245,158,11,0)', '0 0 0 2.5px rgba(245,158,11,0.3)', '0 0 0 0 rgba(245,158,11,0)']
+                    : ['0 0 0 0 rgba(245,158,11,0)', '0 0 0 4px rgba(245,158,11,0.45)', '0 0 0 0 rgba(245,158,11,0)'],
+                  scale: isMobileViewport ? [1, 1.02, 1] : [1, 1.04, 1],
                 }
               : undefined;
             const chipGlowTransition = shouldAnimateBubble
@@ -394,17 +413,13 @@ export default function GroupStage({
               : 'border-[#DC2626]/45 bg-[#FEE2E2] text-[#991B1B] dark:border-[#F87171]/45 dark:bg-[#3A151C] dark:text-[#FCA5A5]';
             const chipClasses =
               'rounded-md border border-[#CBD5E1] bg-[#F8FAFC] px-1.5 py-0.5 text-[#0F172A] dark:border-[#334155] dark:bg-[#1A2235] dark:text-[#D4D4D8]';
-            return (
-              <motion.div
-                key={entry.teamId}
-                className={`rounded-xl border px-2.5 py-2 sm:px-3 sm:py-2.5 ${
-                  qualified
-                    ? 'border-[#D97706]/55 bg-[#FFEDD5] text-[#9A3412] dark:border-[#F59E0B]/55 dark:bg-[#3A2614] dark:text-[#FCD34D]'
-                    : 'border-[#EF4444]/45 bg-[#FEF2F2] text-[#991B1B] dark:border-[#F87171]/45 dark:bg-[#32141A] dark:text-[#FCA5A5]'
-                }`}
-                animate={bubbleGlowAnimation}
-                transition={bubbleGlowTransition}
-              >
+            const cardClasses = `rounded-xl border px-2.5 py-2 sm:px-3 sm:py-2.5 ${
+              qualified
+                ? 'border-[#D97706]/55 bg-[#FFEDD5] text-[#9A3412] dark:border-[#F59E0B]/55 dark:bg-[#3A2614] dark:text-[#FCD34D]'
+                : 'border-[#EF4444]/45 bg-[#FEF2F2] text-[#991B1B] dark:border-[#F87171]/45 dark:bg-[#32141A] dark:text-[#FCA5A5]'
+            }`;
+            const cardContent = (
+              <>
                 <div className="mb-1 flex items-center justify-between gap-1.5 sm:mb-1.5 sm:gap-2">
                   <span
                     className={`rounded-md px-1.5 py-0.5 text-xs font-black leading-none sm:px-2 sm:text-sm ${rankClasses}`}
@@ -431,33 +446,56 @@ export default function GroupStage({
                   />
                   <p className="truncate text-sm font-semibold text-[#0F172A] sm:text-base dark:text-[#FFFFFF]">{team.name}</p>
                 </div>
-                <div className="mt-1.5 flex items-center justify-between gap-2 rounded-md border border-[#E2E8F0] bg-[#FFF7ED]/60 px-2 py-1 sm:mt-0 sm:block sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 dark:border-[#334155] dark:bg-[#1A2235]/65 dark:sm:bg-transparent">
+                <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-0 sm:block">
                   <p className="mb-0 text-[10px] font-medium uppercase tracking-[0.07em] text-[#475569] sm:mb-2 sm:text-xs sm:tracking-[0.08em] dark:text-[#9CA3AF]">Grupo {entry.group}</p>
                   <div className="flex items-center gap-1 text-[11px] font-semibold sm:gap-1.5 sm:text-xs">
-                    <motion.span
-                      className={chipClasses}
-                      animate={chipGlowAnimation}
-                      transition={chipGlowTransition}
-                    >
-                      PTS {entry.points}
-                    </motion.span>
-                    <motion.span
-                      className={chipClasses}
-                      animate={chipGlowAnimation}
-                      transition={chipGlowTransition}
-                    >
-                      DG {entry.gd}
-                    </motion.span>
-                    <motion.span
-                      className={chipClasses}
-                      animate={chipGlowAnimation}
-                      transition={chipGlowTransition}
-                    >
-                      GF {entry.gf}
-                    </motion.span>
+                    {shouldAnimateBubble ? (
+                      <>
+                        <motion.span
+                          key={`pts-${entry.teamId}-${isMobileViewport ? 'm' : 'd'}`}
+                          className={chipClasses}
+                          animate={chipGlowAnimation}
+                          transition={chipGlowTransition}
+                        >
+                          PTS {entry.points}
+                        </motion.span>
+                        <motion.span
+                          key={`dg-${entry.teamId}-${isMobileViewport ? 'm' : 'd'}`}
+                          className={chipClasses}
+                          animate={chipGlowAnimation}
+                          transition={chipGlowTransition}
+                        >
+                          DG {entry.gd}
+                        </motion.span>
+                        <motion.span
+                          key={`gf-${entry.teamId}-${isMobileViewport ? 'm' : 'd'}`}
+                          className={chipClasses}
+                          animate={chipGlowAnimation}
+                          transition={chipGlowTransition}
+                        >
+                          GF {entry.gf}
+                        </motion.span>
+                      </>
+                    ) : (
+                      <>
+                        <span className={chipClasses}>PTS {entry.points}</span>
+                        <span className={chipClasses}>DG {entry.gd}</span>
+                        <span className={chipClasses}>GF {entry.gf}</span>
+                      </>
+                    )}
                   </div>
                 </div>
+              </>
+            );
+
+            return animateCardBubble ? (
+              <motion.div key={entry.teamId} className={cardClasses} animate={bubbleGlowAnimation} transition={bubbleGlowTransition}>
+                {cardContent}
               </motion.div>
+            ) : (
+              <div key={entry.teamId} className={cardClasses}>
+                {cardContent}
+              </div>
             );
           })}
         </div>
