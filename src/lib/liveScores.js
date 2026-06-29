@@ -411,6 +411,23 @@ const resolveGroupId = (entryGroup, homeTeamId, awayTeamId, groupMatches) => {
   );
 };
 
+const resolveFixtureByMatchId = (matchId, groupMatches) => {
+  const numericMatchId = Number(matchId);
+  if (!Number.isInteger(numericMatchId) || numericMatchId < 1) return null;
+
+  const fixtureIndex = numericMatchId - 1;
+  const groupOffset = Math.floor(fixtureIndex / 6);
+  const matchOffset = fixtureIndex % 6;
+  const groupId = String.fromCharCode(65 + groupOffset);
+  const matches = groupMatches[groupId];
+
+  if (!Array.isArray(matches) || !matches[matchOffset]) return null;
+  return {
+    groupId,
+    fixture: matches[matchOffset],
+  };
+};
+
 const toNumberScore = (value) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
@@ -440,17 +457,38 @@ export const mapLiveScoresIntoMatches = (groupMatches, teamMap, liveScores) => {
 
     if (!homeTeamId || !awayTeamId || homeScore == null || awayScore == null) return;
 
-    const groupId = resolveGroupId(entry.group, homeTeamId, awayTeamId, nextGroupMatches);
-    if (!groupId || !nextGroupMatches[groupId]) return;
+    const fixtureFromMatchId = resolveFixtureByMatchId(entry.matchId, nextGroupMatches);
+    let groupId = null;
+    let fixture = null;
+    let entryIsReversed = false;
 
-    const matches = nextGroupMatches[groupId];
-    const directIndex = matches.findIndex((match) => match.home === homeTeamId && match.away === awayTeamId);
-    const reversedIndex = matches.findIndex((match) => match.home === awayTeamId && match.away === homeTeamId);
+    if (fixtureFromMatchId) {
+      if (!homeTeamId || !awayTeamId) return;
 
-    if (directIndex === -1 && reversedIndex === -1) return;
+      const { groupId: strictGroupId, fixture: strictFixture } = fixtureFromMatchId;
+      const isDirect = strictFixture.home === homeTeamId && strictFixture.away === awayTeamId;
+      const isReversed = strictFixture.home === awayTeamId && strictFixture.away === homeTeamId;
 
-    const fixture = directIndex !== -1 ? matches[directIndex] : matches[reversedIndex];
-    const entryIsReversed = fixture.home === awayTeamId && fixture.away === homeTeamId;
+      if (!isDirect && !isReversed) return;
+
+      groupId = strictGroupId;
+      fixture = strictFixture;
+      entryIsReversed = isReversed;
+    } else {
+      if (!homeTeamId || !awayTeamId) return;
+
+      groupId = resolveGroupId(entry.group, homeTeamId, awayTeamId, nextGroupMatches);
+      if (!groupId || !nextGroupMatches[groupId]) return;
+
+      const matches = nextGroupMatches[groupId];
+      const directIndex = matches.findIndex((match) => match.home === homeTeamId && match.away === awayTeamId);
+      const reversedIndex = matches.findIndex((match) => match.home === awayTeamId && match.away === homeTeamId);
+      if (directIndex === -1 && reversedIndex === -1) return;
+
+      fixture = directIndex !== -1 ? matches[directIndex] : matches[reversedIndex];
+      entryIsReversed = fixture.home === awayTeamId && fixture.away === homeTeamId;
+    }
+
     const canonicalHomeScore = entryIsReversed ? awayScore : homeScore;
     const canonicalAwayScore = entryIsReversed ? homeScore : awayScore;
     const fixtureKey = `${groupId}:${fixture.home}:${fixture.away}`;
