@@ -958,7 +958,7 @@ export default function App() {
               <button
                 onClick={() => openSaveModal()}
                 disabled={isSavingScores}
-                className="rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
+                className="inline-flex w-full items-center justify-center rounded-full border border-[#2563EB] bg-white px-3 py-2 font-semibold text-[#1E3A8A] hover:bg-[#DBEAFE] sm:hidden dark:border-[#3B82F6] dark:bg-[#121A2B] dark:text-[#8FB4FF] dark:hover:bg-[#1A2740]"
               >
                 {isSavingScores ? 'Guardando...' : 'Guardar datos'}
               </button>
