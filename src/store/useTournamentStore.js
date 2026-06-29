@@ -824,7 +824,8 @@ export const useTournamentStore = create(
         set((state) => {
           if (!Array.isArray(liveScores) || !liveScores.length) return state;
 
-          const mapped = mapLiveScoresIntoMatches(state.groupMatches, state.teamMap, liveScores);
+          const freshGroupMatches = initialGroupMatches();
+          const mapped = mapLiveScoresIntoMatches(freshGroupMatches, state.teamMap, liveScores);
           appliedCount = mapped.appliedCount;
           if (!appliedCount) return state;
 
