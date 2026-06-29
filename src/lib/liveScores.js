@@ -417,12 +417,19 @@ const toNumberScore = (value) => {
   return Math.max(0, Math.min(20, Math.trunc(n)));
 };
 
+const toTimestamp = (value) => {
+  const ts = Date.parse(String(value || ''));
+  return Number.isFinite(ts) ? ts : -1;
+};
+
 export const mapLiveScoresIntoMatches = (groupMatches, teamMap, liveScores) => {
   const nextGroupMatches = Object.fromEntries(
     Object.entries(groupMatches).map(([groupId, matches]) => [groupId, matches.map((match) => ({ ...match }))])
   );
 
   let appliedCount = 0;
+
+  const latestPerFixture = new Map();
 
   liveScores.forEach((entry) => {
     const inferredHomeName = entry.homeTeam || (!isGroupCode(entry.group) ? entry.group : null);
@@ -438,26 +445,52 @@ export const mapLiveScoresIntoMatches = (groupMatches, teamMap, liveScores) => {
 
     const matches = nextGroupMatches[groupId];
     const directIndex = matches.findIndex((match) => match.home === homeTeamId && match.away === awayTeamId);
+    const reversedIndex = matches.findIndex((match) => match.home === awayTeamId && match.away === homeTeamId);
 
-    if (directIndex !== -1) {
-      matches[directIndex] = {
-        ...matches[directIndex],
-        homeGoals: homeScore,
-        awayGoals: awayScore,
-      };
-      appliedCount += 1;
+    if (directIndex === -1 && reversedIndex === -1) return;
+
+    const fixture = directIndex !== -1 ? matches[directIndex] : matches[reversedIndex];
+    const entryIsReversed = fixture.home === awayTeamId && fixture.away === homeTeamId;
+    const canonicalHomeScore = entryIsReversed ? awayScore : homeScore;
+    const canonicalAwayScore = entryIsReversed ? homeScore : awayScore;
+    const fixtureKey = `${groupId}:${fixture.home}:${fixture.away}`;
+    const candidate = {
+      fixtureKey,
+      groupId,
+      homeId: fixture.home,
+      awayId: fixture.away,
+      homeScore: canonicalHomeScore,
+      awayScore: canonicalAwayScore,
+      updatedAt: toTimestamp(entry.updatedAt),
+      matchId: Number.isFinite(Number(entry.matchId)) ? Number(entry.matchId) : -1,
+    };
+
+    const current = latestPerFixture.get(fixtureKey);
+    if (!current) {
+      latestPerFixture.set(fixtureKey, candidate);
       return;
     }
 
-    const reversedIndex = matches.findIndex((match) => match.home === awayTeamId && match.away === homeTeamId);
-    if (reversedIndex !== -1) {
-      matches[reversedIndex] = {
-        ...matches[reversedIndex],
-        homeGoals: awayScore,
-        awayGoals: homeScore,
-      };
-      appliedCount += 1;
+    const isNewer =
+      candidate.updatedAt > current.updatedAt ||
+      (candidate.updatedAt === current.updatedAt && candidate.matchId >= current.matchId);
+
+    if (isNewer) {
+      latestPerFixture.set(fixtureKey, candidate);
     }
+  });
+
+  latestPerFixture.forEach((entry) => {
+    const matches = nextGroupMatches[entry.groupId] || [];
+    const fixtureIndex = matches.findIndex((match) => match.home === entry.homeId && match.away === entry.awayId);
+    if (fixtureIndex === -1) return;
+
+    matches[fixtureIndex] = {
+      ...matches[fixtureIndex],
+      homeGoals: entry.homeScore,
+      awayGoals: entry.awayScore,
+    };
+    appliedCount += 1;
   });
 
   return { nextGroupMatches, appliedCount };
